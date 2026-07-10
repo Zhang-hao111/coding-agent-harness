@@ -351,7 +351,7 @@ git commit -m "feat: 实现 LLM 抽象层（MockLLM 含 response 序列 + DeepSe
 
 ### Task 4：工具系统
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：⏳ 评审通过待 merge ｜ 实现: bb88951 ｜ 分支: task/4（已 push，PR/merge 待用户）
 
 **前置依赖：** 任务 1、任务 2
 

@@ -255,9 +255,26 @@ interface Action {
   noteKey?: string              // take_note 时：记忆键
   noteValue?: string            // take_note 时：记忆值
 }
+
+interface Message {
+  role: 'system' | 'user' | 'assistant'   // 窄联合，直接兼容 openai SDK
+  content: string
+}
+
+interface ToolChoice {
+  name: string
+  description: string
+  parameters?: Record<string, unknown>    // MVP 仅作元数据传入，未启用 function calling
+}
+
+interface DangerousPattern {
+  pattern: RegExp
+  disposition: Disposition
+  reason: string
+}
 ```
 
-> `spawn_subagent` / `use_skill` 不在 MVP 范围，按 YAGNI 不预定义；深入/扩展阶段需要时再补。
+> `DangerousPattern` 定义在 `types.ts`，`guardrail.ts` 再导出，避免循环依赖。`spawn_subagent` / `use_skill` 不在 MVP 范围，按 YAGNI 不预定义；深入/扩展阶段需要时再补。
 
 ### 6.2 TraceEntry
 

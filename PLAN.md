@@ -19,6 +19,7 @@
 - 环境变量经 dotenv 从 `.env` 加载，不用命令行 `export`。
 - 每个核心机制必须有 mock-LLM 单元测试，不依赖网络与真实 LLM。
 - TDD：先写失败测试、确认失败，再实现、确认通过，再提交。
+- **绿灯门 = `npm test` 通过 AND `npx tsc --noEmit` 零错误**（vitest 经 esbuild 剥离类型，不做跨文件类型检查；类型错误只有 `tsc` 能暴露）。
 - 每个 task 完成后做两阶段评审（spec 合规 + 代码质量），Critical issue 必须修复才能进入下一 task。
 - 代码风格：匹配现有代码风格，不做无关重构；YAGNI，不写投机性代码。
 - Commit 消息：`<类型>: <描述>`，标注 subagent 来源与人工修改。
@@ -143,13 +144,17 @@ TypeScript 5.x + tsup + vitest + commander + dotenv 技术栈。
 - 测试： `tests/types.test.ts`
 
 **接口：**
-- 产出： `Action`、`ActionType`、`ToolDef`、`ToolResult`、`Message`、`ToolChoice`、`LLMResponse`、`GuardrailResult`、`Disposition`、`TraceEntry`、`MemoryEntry`、`SessionState`、`HarnessConfig`
+- 产出： `Action`、`ActionType`、`ToolDef`、`ToolResult`、`Message`、`ToolChoice`、`LLMResponse`、`GuardrailResult`、`Disposition`、`DangerousPattern`、`TraceEntry`、`MemoryEntry`、`SessionState`、`HarnessConfig`
 
 **关键约束：**
 - `ActionType = 'call_tool' | 'done' | 'take_note'`（不预定义 `spawn_subagent`/`use_skill`，YAGNI）。
 - `Action` 的 `take_note` 用 `noteKey?: string` + `noteValue?: string`，**不用**单字符串 `note`。
+- `Message = { role: 'system' | 'user' | 'assistant'; content: string }`（role 为窄联合，直接兼容 openai SDK）。
+- `ToolChoice = { name: string; description: string; parameters?: Record<string, unknown> }`。
 - `GuardrailResult = { disposition: 'allow' | 'deny' | 'escalate'; reason?: string }`。
-- `HarnessConfig` 含 `maxSteps`、`dangerousPatterns`、`memoryPath`、`tracesDir`、`credentialsPath`。
+- `Disposition = 'allow' | 'deny' | 'escalate'`。
+- **`DangerousPattern` 定义在 `types.ts`**（含 `pattern: RegExp`、`disposition: Disposition`、`reason: string`），`guardrail.ts` 用 `export type { DangerousPattern } from './types'` 再导出——避免 `guardrail.ts` 产出该类型又 import `types.ts` 的循环依赖。
+- `HarnessConfig` 含 `maxSteps`、`dangerousPatterns: DangerousPattern[]`、`memoryPath`、`tracesDir`、`credentialsPath`。
 
 - [ ] **步骤 1：编写失败测试**
 
@@ -157,29 +162,30 @@ TypeScript 5.x + tsup + vitest + commander + dotenv 技术栈。
 
 ```typescript
 import { describe, it, expect } from 'vitest'
-import { Action, ActionType, GuardrailResult, Disposition } from '../src/types'
+// 用命名空间 import + 运行时断言，确保 import 不被 esbuild 当作 type-only 剥离
+// （type-only import 删掉 src/types.ts 后测试仍会过，红灯失效）
+import * as Types from '../src/types'
 
 describe('Type definitions', () => {
-  it('Action type is valid', () => {
-    const action: Action = { type: 'done', answer: 'test' }
-    expect(action.type).toBe('done')
+  it('module is exported at runtime', () => {
+    expect(Types).toBeDefined()
   })
 
   it('take_note uses noteKey/noteValue', () => {
-    const action: Action = { type: 'take_note', noteKey: 'lang', noteValue: 'TypeScript' }
+    const action: Types.Action = { type: 'take_note', noteKey: 'lang', noteValue: 'TypeScript' }
     expect(action.noteKey).toBe('lang')
     expect(action.noteValue).toBe('TypeScript')
   })
 
   it('GuardrailResult is three-state', () => {
-    const r: GuardrailResult = { disposition: 'escalate', reason: 'rm -rf /' }
-    const d: Disposition = 'allow'
+    const r: Types.GuardrailResult = { disposition: 'escalate', reason: 'rm -rf /' }
+    const d: Types.Disposition = 'allow'
     expect(['allow', 'deny', 'escalate']).toContain(r.disposition)
     expect(['allow', 'deny', 'escalate']).toContain(d)
   })
 
   it('ActionType has no spawn_subagent', () => {
-    const t: ActionType = 'call_tool'
+    const t: Types.ActionType = 'call_tool'
     expect(t).not.toBe('spawn_subagent')
   })
 })
@@ -234,9 +240,12 @@ git commit -m "feat: 定义核心类型（Action、GuardrailResult 三态、Trac
   - `class DeepSeekProvider`：`constructor(apiKey: string, model?: string)`、`chat(...)`
 
 **关键约束：**
-- `MockLLM.chat`：若配了队列则按序弹出下一个 action；队列空且无 one-shot 时抛 `"No preset response configured"`。`setResponse` 与 `setResponses` 互斥（后者覆盖前者）。
+- `MockLLM.chat`：若配了队列则按序弹出下一个 action；队列空且无 one-shot 时抛 `"No preset response configured"`。
+- `setResponse`/`setResponses` 互斥语义：每个 setter 调用时**重置对方状态**（调 `setResponses` 清空 one-shot；调 `setResponse` 清空队列），使"后者覆盖前者"双向成立。
+- one-shot 语义：one-shot 为**持久兜底**，每次 `chat` 返回同一 action、**不被消费**；队列模式才按序消费。
 - `MockLLM` 返回的 `LLMResponse.message` 角色为 `assistant`，content 由 action 推导（done→answer，其余可空）。
 - `DeepSeekProvider` 用 `openai` 包，`baseURL: 'https://api.deepseek.com/v1'`，默认 model `deepseek-chat`。MVP 用文本解析 action（检测 `DONE` 标记），**未启用 function calling**——这是已知 MVP 限制，在文件顶部注释标明，深入阶段切换。
+- **类型摩擦**：`Message.role` 为窄联合 `'system'|'user'|'assistant'`，传入 `openai` SDK 的 `ChatCompletionMessageParam` 时可直接用（无需断言）；若实现为宽 `string` 则需在传入处收敛为联合类型。
 
 - [ ] **步骤 1：编写失败测试**
 
@@ -245,6 +254,7 @@ git commit -m "feat: 定义核心类型（Action、GuardrailResult 三态、Trac
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest'
 import { MockLLM } from '../src/llm/mock'
+import { DeepSeekProvider } from '../src/llm/deepseek'
 import { Action } from '../src/types'
 
 describe('MockLLM', () => {
@@ -256,6 +266,13 @@ describe('MockLLM', () => {
     const result = await mock.chat([{ role: 'user', content: 'hi' }], [])
     expect(result.action?.type).toBe('done')
     expect(result.action?.answer).toBe('Task complete')
+  })
+
+  it('one-shot is not consumed', async () => {
+    mock.setResponse({ type: 'done', answer: 'x' })
+    await mock.chat([{ role: 'user', content: 'a' }], [])
+    const r2 = await mock.chat([{ role: 'user', content: 'b' }], [])
+    expect(r2.action?.answer).toBe('x')
   })
 
   it('throws when no response configured', async () => {
@@ -273,6 +290,13 @@ describe('MockLLM', () => {
     expect(r2.action?.type).toBe('done')
   })
 
+  it('setResponses resets one-shot (mutual exclusion)', async () => {
+    mock.setResponse({ type: 'done', answer: 'one-shot' })
+    mock.setResponses([{ type: 'done', answer: 'queue' }])
+    const r = await mock.chat([{ role: 'user', content: 'go' }], [])
+    expect(r.action?.answer).toBe('queue')
+  })
+
   it('throws when queue exhausted', async () => {
     mock.setResponses([{ type: 'done', answer: 'x' }])
     await mock.chat([{ role: 'user', content: 'go' }], [])
@@ -283,6 +307,13 @@ describe('MockLLM', () => {
     mock.setResponse({ type: 'done', answer: 'ok' })
     await mock.chat([{ role: 'user', content: 'first' }], [])
     expect(mock.getHistory().length).toBeGreaterThan(0)
+  })
+})
+
+describe('DeepSeekProvider', () => {
+  it('constructs without network', () => {
+    const p = new DeepSeekProvider('sk-fake', 'deepseek-chat')
+    expect(p).toBeDefined()
   })
 })
 ```
@@ -451,10 +482,9 @@ git commit -m "feat: 实现工具系统（read_file / write_file / shell + regis
 - 测试： `tests/guardrail.test.ts`
 
 **接口：**
-- 依赖： `Action`、`GuardrailResult`、`Disposition`（from `src/types.ts`）
+- 依赖： `Action`、`GuardrailResult`、`Disposition`、`DangerousPattern`（from `src/types.ts`）
 - 产出：
-  - `type DangerousPattern = { pattern: RegExp; disposition: Disposition; reason: string }`
-  - `const DEFAULT_DANGEROUS_PATTERNS: DangerousPattern[]`
+  - `const DEFAULT_DANGEROUS_PATTERNS: DangerousPattern[]`（`DangerousPattern` 定义在 `types.ts`，本文件 `export type { DangerousPattern } from './types'` 再导出）
   - `function guardrail(action: Action, patterns?: DangerousPattern[]): GuardrailResult`
   - `type Approver = (action: Action) => Promise<boolean>`
 
@@ -468,7 +498,7 @@ git commit -m "feat: 实现工具系统（read_file / write_file / shell + regis
   | `/^dd\s+if=/` | escalate | 覆写磁盘 |
   | `/^>\/dev\/sda/` | escalate | 覆写磁盘 |
   | `/^fdisk/` | escalate | 改分区表 |
-  | `/^:\(\)\{\s*:\s*\|\|:\s*&\};:/` | deny | fork 炸弹 |
+  | `/^:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&/` | deny | fork 炸弹（单管道标准形态） |
 
 - 非 shell 工具或非 `call_tool` 的 action → `{ disposition: 'allow' }`。
 - 匹配时返回**该模式**的 disposition + reason；不匹配 → `allow`。

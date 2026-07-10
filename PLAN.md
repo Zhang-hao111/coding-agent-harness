@@ -224,7 +224,7 @@ git commit -m "feat: 定义核心类型（Action、GuardrailResult 三态、Trac
 
 ### Task 3：LLM 抽象层
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: 34a6b15 ｜ merge: a8911c0（PR #1）｜ 分支: task/3
 
 **前置依赖：** 任务 1、任务 2
 

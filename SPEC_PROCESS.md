@@ -122,3 +122,100 @@ npm install && ls node_modules/.package-lock.json  # 仅验证依赖安装成功
 ### 2.4 验证结论
 
 SPEC.md 和 PLAN.md **基本满足冷启动要求**。一个不了解项目背景的新 agent 可以独立完成实现，但 PLAN.md 有两个影响 TDD 流程的问题（P0 和 P1）需要修正。修正后重新验证通过。
+
+> ⚠️ **回看（见第三部分）**：冷启动"7/7 通过"其实是个**误导性信号**——冷启动 agent 基本是照抄 PLAN 里已写死的完整实现代码，报告也写"代码与 PLAN 一致"。它证明的是"PLAN 的代码跑得通"，**不是** §4.5 要的"spec 够清晰能让新 agent 独立实现"。PLAN 把代码写满，恰恰绕过了冷启动最该测的东西。这是本轮重写的直接触发点。
+
+---
+
+## 三、第二轮审核与 PLAN 重写
+
+> 时间：2026-07-10
+> 触发：用户在冷启动后复审全部文件，对照两个 FINAL_PROJECT 要求，逐条审核 SPEC/PLAN/SPEC_PROCESS。
+
+### 3.1 触发点：用户质疑"为什么代码已经在 PLAN 里写了"
+
+冷启动通过后，用户复审时提出一个直击方法论的问题：
+
+> **用户：** "我有个问题，为什么现在的代码已经在 PLAN 里面写了？"
+
+这暴露了 `writing-plans` 技能方法论与项目要求之间的根本张力：
+
+| 要求来源 | 对 PLAN 的要求 | 与完整代码的关系 |
+|---------|---------------|----------------|
+| `writing-plans` 技能 | "Complete code in every step, no placeholders" | **要求**写满实现代码 |
+| 通用要求 §4.3 | "目标、涉及文件、**预期实现要点**、验证步骤" | "要点"≠完整代码 |
+| 通用要求 §4.5 冷启动 | 测"spec 是否够清晰让陌生 agent 独立实现" | PLAN 写满→冷启动变成抄写，测不出清晰度 |
+| 通用要求 §4.6 | "subagent 驱动开发，每个 task 派新鲜 subagent **自主**完成" | PLAN 写满→subagent 沦为打字员 |
+| A 文件 §A.4(C) | "移除 LLM 后机制能否单测验证 = 你**自己编码**了机制" | PLAN 预先给完整实现，模糊"谁在编码" |
+
+**决策：** PLAN 改为**要点式**——每个 task 只给"失败测试代码（含断言）+ 接口签名 + 关键约束/边界"，**实现代码完全交给 subagent 自主写**。这样 TDD 的"红"由测试定义、"绿"由 subagent 独立完成，§4.3/§4.5/§4.6/§A.4(C) 四条同时满足。
+
+### 3.2 审核发现的 11 项不符合项
+
+对照两个 FINAL_PROJECT 文件，发现以下不符合项（已全部修订）：
+
+| 编号 | 严重度 | 出处 | 问题 | 修订 |
+|------|--------|------|------|------|
+| G-1 | 🔴 | §A.6② | 演示②无法验证"反馈闭环使 agent 改变下一步动作"——MockLLM 是 one-shot，第二步抛异常 | MockLLM 加 `setResponses` 队列；演示②改为"第一步失败→第二步 done"，断言行为改变 |
+| G-2 | 🔴 | §4.8/§9.5 | CI 配置 task 缺失 | 新增任务 14：`.github/workflows/ci.yml`（unit-test + docker-build） |
+| G-3 | 🔴 | §4.7 | PLAN 缺 commit hash 追踪 | 每个 task 标题加状态块 `> 状态：⬜未开始 ｜ commit: — ｜ PR: —` |
+| G-4 | 🔴 | §4.6 | 两阶段评审步骤缺失 | 每个 task 末尾加"spec 合规 + 代码质量"评审 step |
+| G-5 | 🔴 | §3.1 | 凭据用 `process.env` 直读，无 `.env` 加载 | 加 dotenv；SPEC §7.1/§5.3/§8 注明从 `.env` 加载 |
+| G-6 | 🔴 | §五第9条 | WebUI task 完全缺失（硬交付物） | 新增任务 12：本地 WebUI（Express + Open Design 读 traces）；公网部署列未决 |
+| G-7 | 🟡 | DRY | `config.ts` 与 `guardrail.ts` 重复定义危险模式 | `config.ts` 复用 `DEFAULT_DANGEROUS_PATTERNS` |
+| G-8 | 🟡 | §3.5 | `take_note` 用 `note.split(':')` 与 SPEC key/value 模型不一致 | Action 改用 `noteKey`/`noteValue` 字段 |
+| G-9 | 🟡 | §3.1 | DeepSeekProvider 文本解析过弱，真实运行会空转到 MAX_STEPS | SPEC §3.1 标注 MVP 限制，深入阶段切 function calling |
+| G-10 | 🟡 | §A.1 | HITL 仅有拦截、无"暂停等待人工审批" | guardrail 改三态（allow/deny/escalate），escalate 调 `approver` 注入点 |
+| G-11 | 🟡 | YAGNI | `ActionType` 含 `spawn_subagent`/`use_skill` 死类型 | 收窄为 `call_tool \| done \| take_note` |
+
+### 3.3 关键决策（11 项，逐一与用户确认）
+
+本轮每项涉及取舍的决策都遵循 §2"先思考再写代码"——列出多选项与推荐，由用户拍板，而非自行选定：
+
+| # | 决策点 | 用户选择 |
+|---|--------|---------|
+| 1 | PLAN 代码粒度 | **要点式**（失败测试+接口+约束，实现交 subagent） |
+| 2 | MockLLM 接口 | **扩展**为支持 response 序列（保留 one-shot 兼容） |
+| 3 | CI 形态 | **GitHub Actions**（`.github/workflows/`，含 unit-test + docker-build） |
+| 4 | WebUI 范围 | **A**：当前 PLAN 加本地 WebUI task，公网部署留阶段三未决 |
+| 5 | HITL 深度 | **分级**：根据危险动作"暂停情形"分流——deny 继续循环 / escalate 人工审批 |
+| 6 | GuardrailResult | 三态 `allow/deny/escalate`，分级表默认见 SPEC §11.2 |
+| 7 | take_note 字段 | `noteKey`/`noteValue`（不 split 字符串） |
+| 8 | ActionType | 移除死类型，收窄 |
+| 9 | DeepSeekProvider | MVP 标文本解析限制，深入阶段切 function calling |
+| 10 | commit 追踪 | 状态块格式 `> 状态：… ｜ commit: … ｜ PR: …` |
+| 11 | config DRY | 复用 guardrail 默认模式表 |
+
+### 3.4 对 SPEC / PLAN 的修订（关键 diff）
+
+**SPEC.md 修订：**
+- §3.1 加 MVP 限制注（DeepSeek 文本解析）
+- §3.3 Guardrail 改三态分级表
+- §3.7 WebUI 补本地实现 + 公网未决说明
+- §5.2 数据流改三态分流；§5.3 加 dotenv；§7.1 加 .env 加载；§8 加 dotenv 选型
+- §6.1 Action：`noteKey`/`noteValue`、`ActionType` 收窄
+- §6.4 GuardrailResult 改三态
+- §9 验收标准补 HITL/演示②行为改变/CI 三条
+- §10 风险表更新；§11.2/§11.5 三态化
+- §12 阶段一补 CI/WebUI/序列/MockLLM
+
+**PLAN.md 修订（整体重写为要点式，13 task → 15 task）：**
+- 所有 task 去除实现代码，保留失败测试 + 接口签名 + 约束
+- 每个 task 加状态块 + 两阶段评审 step
+- 任务 5 guardrail 改三态 + `approver` 注入点
+- 任务 8 主循环：三态分流 + 反馈改变动作 + HITL approver + config DRY
+- 任务 11 演示②重写为"失败→反馈→改走 done"，演示③改多轮反馈确定性
+- 新增任务 12（本地 WebUI）、任务 14（CI）
+
+### 3.5 反思：writing-plans 技能表现
+
+**做得好：**
+- bite-sized task + TDD 红绿步骤的骨架，让"先红再绿"有可循路径
+- 接口签名 + 前置依赖标注，对 subagent 派发友好
+
+**不满意（本轮暴露）：**
+- **"complete code in every step"在本项目是反模式**。它默认假设执行者只是"照抄实现的工程师"，但本项目恰恰要验证"subagent 能否自主实现"——写满代码直接消解了 §4.5/§4.6 的训练目标。技能的零歧义哲学与项目的"训练判断力"目标在这里冲突。
+- 第一轮 PLAN 完全写满实现，**冷启动因此失真**——7/7 通过只证明代码跑得通，没暴露任何 spec 缺陷（除了 F-1/F-2 两处机械错误）。这是过程证据被绕过的典型：冷启动 agent 抄答案，自然"通过"。
+- writing-plans 技能未提示"当 PLAN 被用作 subagent 自主实现的依据时，应降为实现要点式"——这是技能盲点。
+
+**教训：** 技能方法论不是教条。`writing-plans` 的"完整代码"适用于"工程师照着实现"场景；一旦交付物要求里出现"subagent 自主完成/冷启动验证 spec 清晰度"，PLAN 必须主动降粒度为要点式，否则会架空项目的核心训练目标。这条判断应由我（而非技能）做出。

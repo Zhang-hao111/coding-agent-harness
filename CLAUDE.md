@@ -8,8 +8,8 @@
 
 - **默认使用中文回答。**
 - **专业技术用语保留英文**，不强行翻译成中文（比如 API、endpoint、commit、pull request、race condition、singleton 这类词，直接用英文；其余说明性文字用中文）。
-- 代码里的变量名/函数名按行业惯例用英文；代码注释默认用中文，除非项目已有的注释是英文（那就匹配现有风格，参照第 3 条"精准修改"）。
-- commit message 默认中文，除非项目已有的 commit history 是英文（同样匹配现有风格）。
+- 代码里的变量名/函数名按行业惯例用英文；代码注释默认用中文，除非项目已有的注释是英文（那就匹配现有风格，参照第 4 条"精准修改"）。
+- commit message 遵循以下规范（见 §9.7 提交规范）。
 
 ## 2. 先思考，再写代码
 
@@ -69,11 +69,16 @@
 
 ## 6. 环境与依赖管理
 
-- **统一使用 `uv` 管理 Python 环境和依赖，不使用 `pip` / `conda` / `poetry`。**
-- 新项目用 `uv init` / `uv add` 建立依赖，不手写 `requirements.txt`（除非目标环境明确只认 `requirements.txt`，这种情况下用 `uv export` 生成，而不是手动维护）。
-- 涉及虚拟环境操作时，默认用 `uv venv` / `uv run`，不假设用户已经 `source activate` 了某个 conda 环境。
-- 调用 LLM API 所需的 HTTP 库（如 `httpx`、`openai`）以及 JSON 处理相关依赖，统一通过 `uv add` 管理。
-- 如果项目里已经有 `requirements.txt` 或 `environment.yml` 之类的遗留配置，先按第 3 条"精准修改"原则处理：不要顺手把整个项目迁移成 `uv`，除非明确被要求这么做。
+### 6.1 通用规则
+
+- **遵循项目自身的生态惯例**：TypeScript 项目用 `npm`，不混用包管理器。
+- **锁文件提交到版本控制**：`package-lock.json` 应一并提交，确保环境可复现。
+- **遗留配置不动**：不跨工具迁移，除非明确被要求。
+
+### 6.2 非 TypeScript 项目
+
+- 如果项目使用其他语言，遵循其生态惯例：Python 用 `uv`，Java 用 `maven`/`gradle`，Go 用 `go mod`，Rust 用 `cargo` 等。
+- 已有 `requirements.txt`、`build.gradle`、`go.mod` 等遗留配置，按第 4 条"精准修改"原则处理，不顺手迁移。
 
 ## 7. 命令执行提示
 
@@ -97,7 +102,7 @@
 
 ### 9.1 核心公式
 
-**Agent = LLM + Harness**。LLM 只负责"想下一步"这一行任务决策；其余一切（工具、记忆、治理、反馈、配置）都是 harness 的工程。
+**Agent = LLM × Harness**。LLM 只负责"想下一步"这一行任务决策；其余一切（工具、记忆、治理、反馈、配置）都是 harness 的工程。
 
 ### 9.2 六个必须实现的维度
 
@@ -110,47 +115,110 @@
 | **记忆** | 跨会话持久化，按需检索而非全量载入 | 存储与检索自实现，不直接接框架 memory |
 | **配置** | 声明式规则约束 agent 行为 | 可运行 |
 
-**选择一个维度深入实现作为主要贡献，其余五个维度做可运行的最低实现。**
+**选择一个维度深入实现作为主要贡献，其余五个维度做可运行的最低实现。** 本项目选择**反馈闭环**作为深入维度。
 
 ### 9.3 硬性约束
 
 - **必须自己实现 agent 主循环**，不允许建在 LangChain `AgentExecutor`、AutoGen、CrewAI、LlamaIndex agent 等高层循环之上。
 - **必须有一个可注入 mock 的 LLM 抽象层**，可替换为 mock LLM 运行离线测试，也可接入真实供应商。
 - **机制必须是代码，不是提示词**：反馈信号 = 你编写的校验器/传感器；危险动作拦截 = 你编写的护栏。移除真实 LLM 后，每个核心机制仍能用确定性单元测试验证。
-- **TDD 是硬性要求**：先红、再绿、再重构。不接受先写实现再补测试。
-- **凭据绝不硬编码**：key 不进入源码、不提交 Git、不写入日志。实现安全存储（钥匙串/加密文件/密钥管理服务）。
-- **实现语言**：TypeScript（使用 `npm` 管理依赖）。
-- **LLM 供应商**：待定。
+- **TDD 是硬性要求，由 `test-driven-development` 技能强制执行**：先红、再绿、再重构。不接受先写实现再补测试。
+- **凭据绝不硬编码**：key 不进入源码、不提交 Git（含历史）、不写入日志/终端 history/明文配置文件。实现安全存储（加密文件/钥匙串/密钥管理服务）。
+- **实现语言**：TypeScript 5.x（使用 `npm` 管理依赖）。
+- **LLM 供应商**：DeepSeek（OpenAI 兼容协议）。
+- **分发方式**：Docker 容器。
+- **WebUI 设计系统**：Open Design。
+- **独立完成**：个人项目，不允许组队。
 
-### 9.4 工作流程
+### 9.4 七步工作流
 
-严格遵循 Superpowers 七步工作流，顺序如下：
+严格遵循 Superpowers 的工作流，顺序如下：
 
-1. **brainstorming** → 产出 `SPEC.md`
-2. **writing-plans** → 产出 `PLAN.md`
-3. **冷启动验证** → 用第二个 agent 验证 SPEC + PLAN，产出 `SPEC_PROCESS.md`
-4. **实现** → git worktrees + subagent 驱动 + TDD + 两阶段评审
-5. **finishing-a-development-branch** → merge/PR/保留/丢弃
-6. **分发与 CI** → Docker/二进制 + GitHub Actions
+```
+1. brainstorming → 产出 SPEC.md
+2. writing-plans → 产出 PLAN.md
+3. 冷启动验证 → 用第二个 agent 验证 SPEC + PLAN，产出 SPEC_PROCESS.md
+4. 实现 → git worktrees + subagent 驱动 + TDD + 两阶段评审
+5. finishing-a-development-branch → merge/PR/保留/丢弃
+6. 分发与 CI → Docker + GitHub Actions
+7. REFLECTION.md → 反思报告
+```
+
+**关键节点说明：**
+
+- **冷启动验证（§4.5）**：用与主开发 agent 不同的 agent，在全新 session 中仅凭 SPEC + PLAN 实现 1–2 个 task。记录其在何处暂停、暴露了哪些 spec 缺陷。
+- **两阶段评审（§4.6）**：每个 task 完成后先做 spec 合规检查，再做代码质量检查。Critical issue 必须修复才能进入下一 task。
+- **PLAN.md 持续更新（§4.7）**：每完成一个 task 即标记完成并附 commit hash。
+- **AGENT_LOG.md（§4.9）**：按时间顺序记录，每条包含：时间戳与 task 编号、触发的技能、关键 prompt 配置、subagent 输出片段或 commit hash、人工干预内容与原因、学到的教训。
 
 ### 9.5 交付物清单
 
 1. `SPEC.md` — 设计文档（含领域与机制设计一节）
 2. `PLAN.md` — 实现计划
 3. `SPEC_PROCESS.md` — 过程文档
-4. 完整源代码（规范的 commit/PR 历史，无真实凭据）
-5. 分发产物与说明（Dockerfile/构建脚本）
-6. `README.md` — 项目简介、安装、运行、分发、安全边界
+4. 完整源代码（规范的 commit/PR 历史，无任何真实凭据）
+5. 分发产物与说明（Dockerfile）
+6. `README.md` — 项目简介、安装、运行、分发命令、目录结构、安全边界说明
 7. `AGENT_LOG.md` — 过程日志
 8. CI 配置（`.github/workflows/`，含 `unit-test` job）
 9. `REFLECTION.md` — 1500–2500 字反思报告
-10. 机制演示 — mock LLM 下确定性复现护栏拦截、反馈闭环、重点维度行为
+10. 机制演示 — mock LLM 下确定性复现三个行为：① 护栏拦截危险动作 ② 注入失败后反馈闭环改变 agent 行为 ③ 重点维度（反馈闭环）的确定性行为
 
 ### 9.6 重要原则
 
 - **在 SPEC 与 PLAN 完成并通过冷启动验证之前，禁止编写任何实现代码。**
 - **每一行改动都应直接追溯到项目需求**——不写投机性代码，不做任务之外的功能。
 - **遇到不确定之处先暂停询问**，不凭猜测继续。
+- **提交前自查** `.env`、history、配置文件中是否含有真实凭据。
+- **CI 最后一次执行必须为 pass 状态。**
+
+### 9.7 提交规范（Commit Message）
+
+**格式：**
+
+```
+<类型>: <简短描述（≤50字）>
+
+<可选：详细说明。由哪个 subagent 完成、人工修改了哪些部分>
+```
+
+**类型：**
+
+| 类型 | 场景 |
+|------|------|
+| `feat` | 新功能 |
+| `fix` | 修 bug |
+| `docs` | 文档（README、SPEC 等） |
+| `test` | 加测试 |
+| `refactor` | 重构，不改功能 |
+| `chore` | 杂项（构建、配置、依赖） |
+
+**示例：**
+
+```
+feat: 实现 guardrail 危险命令拦截
+
+由 subagent-a 完成。
+人工修改：扩展了危险模式列表，增加了 fork 炸弹检测。
+```
+
+**原则：** 一条 commit 只做一件事；描述做了什么，不是为什么（为什么写在代码注释中）；标注 subagent 来源和人工修改部分。
+
+### 9.8 测试要求
+
+- **可一键运行的测试命令**：`npm test`。
+- **所有核心机制必须有 mock/stub LLM 驱动的确定性单元测试**，不依赖网络与真实 LLM。
+- CI 中每次 push 自动运行测试（GitHub Actions）。
+- 覆盖范围：主循环、工具系统、治理护栏、反馈闭环、记忆系统、可观测性。
+- 机制演示可以是测试用例或可重复运行的脚本。
+
+### 9.9 GitHub 仓库纪律
+
+- **公开仓库**（`https://github.com/Zhang-hao111/coding-agent-harness`）。
+- **完整的 commit 历史与 PR 工作流**：每个 worktree 对应一个 PR，拒绝单次 commit 提交全部代码。
+- **仓库内不得出现任何真实凭据**。
+- 在 commit message / PR 描述中标注由哪个 subagent 完成、人工修改了哪些部分。
+- **PLAN.md 持续更新**：每完成一个 task 即标记完成并附 commit hash。
 
 ---
 

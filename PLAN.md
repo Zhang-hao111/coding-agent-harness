@@ -85,7 +85,7 @@ coding-agent-harness/
 
 ### Task 1：项目脚手架
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: 66234db ｜ merge: c8522d0 ｜ 分支: task/1
 
 **前置依赖：** 无
 
@@ -135,7 +135,7 @@ TypeScript 5.x + tsup + vitest + commander + dotenv 技术栈。
 
 ### Task 2：类型定义
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: 653997e ｜ merge: 8a67b78 ｜ 分支: task/2
 
 **前置依赖：** 任务 1
 

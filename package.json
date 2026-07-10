@@ -1,0 +1,28 @@
+{
+  "name": "coding-agent-harness",
+  "version": "0.1.0",
+  "description": "AI4SE Final Project — Coding Agent Harness MVP",
+  "type": "module",
+  "bin": {
+    "agent-harness": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "openai": "^4.102.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.2",
+    "@types/node": "^22.14.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.1.1"
+  }
+}

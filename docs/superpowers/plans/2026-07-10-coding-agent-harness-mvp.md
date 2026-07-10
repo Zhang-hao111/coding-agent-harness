@@ -173,14 +173,14 @@ dist/
 .idea/
 ```
 
-- [ ] **Step 6: Install dependencies and verify build**
+- [ ] **Step 6: Verify scaffold**
 
 ```bash
 npm install
-npm run build
+ls node_modules/.package-lock.json
 ```
 
-Expected: `dist/index.js` + `dist/index.d.ts` + `dist/index.js.map` exist.
+Expected: `node_modules/` populated, `package-lock.json` present.
 
 - [ ] **Step 7: Commit**
 
@@ -196,6 +196,8 @@ TypeScript 5.x + tsup + vitest + commander 技术栈。
 
 ### Task 2: Type Definitions
 
+**Depends-on:** Task 1 (脚手架)
+
 **Files:**
 - Create: `src/types.ts`
 
@@ -208,12 +210,12 @@ Create `tests/types.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest'
+import { Action } from '../src/types'
 
 describe('Type definitions', () => {
-  it('Action union type covers all variants', () => {
-    const actions: string[] = ['call_tool', 'done', 'take_note', 'spawn_subagent', 'use_skill']
-    // Just verify the types are valid - this is a compile-time check
-    expect(actions).toContain('call_tool')
+  it('Action type is valid', () => {
+    const action: Action = { type: 'done', answer: 'test' }
+    expect(action.type).toBe('done')
   })
 })
 ```
@@ -224,7 +226,7 @@ describe('Type definitions', () => {
 npm test -- tests/types.test.ts
 ```
 
-Expected: FAIL — `src/types.ts` not found (import fails).
+Expected: FAIL — `src/types.ts` not found, therefore `import { Action }` fails.
 
 - [ ] **Step 3: Write types.ts**
 

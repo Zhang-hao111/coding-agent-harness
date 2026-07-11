@@ -772,7 +772,7 @@ git commit -m "feat: 实现可观测性 Tracer
 
 ### Task 8：Agent 主循环（Harness Core）
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: c24d69d ｜ merge: 502270a（PR #6）｜ 分支: task/8
 
 **前置依赖：** 任务 1、2、3、4、5、6、7
 

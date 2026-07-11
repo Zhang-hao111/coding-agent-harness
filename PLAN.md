@@ -584,7 +584,7 @@ git commit -m "feat: 实现三态分级 guardrail（allow/deny/escalate + approv
 
 ### Task 6：记忆系统
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: f7b1699 ｜ merge: 3ca283f（PR #4）｜ 分支: task/6
 
 **前置依赖：** 任务 1、任务 2
 

@@ -1359,7 +1359,7 @@ git commit -m "chore: 添加多阶段 Dockerfile
 
 ### Task 14：GitHub Actions CI
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: 7b4173e (+fix f1b3ecf) ｜ merge: 09bea69（PR #12）｜ 分支: task/14
 
 **前置依赖：** 任务 1–13
 

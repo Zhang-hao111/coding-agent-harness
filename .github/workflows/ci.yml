@@ -1,0 +1,36 @@
+# ============================================================
+# CI — Coding Agent Harness（unit-test + docker-build）
+# ============================================================
+# 通用要求示例为 .gitlab-ci.yml，本项目用 GitHub Actions 等价实现
+# （与公开 GitHub 仓库一致）。
+#
+# §9.8：每次 push 自动运行测试；§9.6：CI 最后一次必须 pass。
+
+name: CI
+
+on:
+  push:
+    branches: [feat/mvp, master]
+  pull_request:
+
+jobs:
+  # ---- 单元测试 job（job 名必须为 unit-test，§五第6条硬约束）----
+  unit-test:
+    name: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+
+  # ---- Docker 镜像构建 job ----
+  docker-build:
+    name: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t coding-agent-harness .

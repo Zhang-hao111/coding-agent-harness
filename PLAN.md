@@ -1393,7 +1393,7 @@ git commit -m "chore: 添加 GitHub Actions CI（unit-test + docker-build）
 
 ### Task 15：AGENT_LOG.md 初始化
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: d5b07b9 ｜ merge: 0dfd1ac（PR #13）｜ 分支: task/15
 
 **前置依赖：** 任务 1–14
 

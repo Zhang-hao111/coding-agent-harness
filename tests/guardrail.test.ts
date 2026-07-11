@@ -37,4 +37,19 @@ describe('guardrail', () => {
     const a: Action = { type: 'call_tool', tool: 'shell', args: { command: 'rm -rf /' } }
     expect(guardrail(a)).toEqual(guardrail(a))
   })
+
+  it('escalates dd if=', () => {
+    const a: Action = { type: 'call_tool', tool: 'shell', args: { command: 'dd if=/dev/zero of=/dev/sda' } }
+    expect(guardrail(a).disposition).toBe('escalate')
+  })
+
+  it('escalates > /dev/sda', () => {
+    const a: Action = { type: 'call_tool', tool: 'shell', args: { command: '>/dev/sda' } }
+    expect(guardrail(a).disposition).toBe('escalate')
+  })
+
+  it('escalates fdisk', () => {
+    const a: Action = { type: 'call_tool', tool: 'shell', args: { command: 'fdisk /dev/sda' } }
+    expect(guardrail(a).disposition).toBe('escalate')
+  })
 })

@@ -473,7 +473,7 @@ git commit -m "feat: 实现工具系统（read_file / write_file / shell + regis
 
 ### Task 5：治理护栏（三态分级 + HITL）
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: 013aeef（+fix 4cf506d 补测试）｜ merge: f20dfc7（PR #3）｜ 分支: task/5
 
 **前置依赖：** 任务 1、任务 2
 

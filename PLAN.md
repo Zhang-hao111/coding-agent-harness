@@ -1030,7 +1030,7 @@ git commit -m "feat: 实现凭据加密存储（AES-256-GCM）
 
 ### Task 10：CLI 入口
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: ba6698c ｜ merge: 63b989c（PR #8）｜ 分支: task/10
 
 **前置依赖：** 任务 1–9
 

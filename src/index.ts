@@ -126,13 +126,15 @@ async function configCommand(options: { status?: boolean; clear?: boolean }): Pr
 }
 
 // ============================================================
-// web — Task 12 将替换为真实 Express server
+// web — 启动 WebUI 调试面板（Express server）
 // ============================================================
 
-function webCommand(): void {
-  // Task 12 将替换为真实 Express server
-  console.log('Web UI 尚未实现（见 Task 12）')
-  process.exit(0)
+import { startWebServer } from './web/server'
+
+async function webCommand(): Promise<void> {
+  const cfg = loadConfig()
+  const srv = await startWebServer(cfg.tracesDir, 3000)
+  console.log('Web UI 已启动：' + srv.url + '（Ctrl+C 退出）')
 }
 
 // ============================================================
@@ -165,8 +167,8 @@ program
 program
   .command('web')
   .description('启动 Web UI（Task 12）')
-  .action(() => {
-    webCommand()
+  .action(async () => {
+    await webCommand()
   })
 
 // ============================================================

@@ -11,8 +11,8 @@ WORKDIR /app
 # 先拷依赖清单，利用层缓存（依赖不变则 npm ci 层命中）
 COPY package.json package-lock.json ./
 RUN npm ci
-# 再拷源码并构建
-COPY tsup.config.ts ./
+# 再拷源码与构建配置
+COPY tsup.config.ts tsconfig.json ./
 COPY src ./src
 RUN npm run build
 

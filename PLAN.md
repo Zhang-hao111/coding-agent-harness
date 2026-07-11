@@ -1323,7 +1323,7 @@ git commit -m "feat: 实现本地 WebUI 调试面板（Express + Open Design 读
 
 ### Task 13：Dockerfile
 
-> 状态：⬜ 未开始 ｜ commit: — ｜ PR: —
+> 状态：✅ 完成 ｜ 实现: f591c58 (+fix 1db3ac2) ｜ merge: 21dfc5c（PR #11）｜ 分支: task/13
 
 **前置依赖：** 任务 1–12
 

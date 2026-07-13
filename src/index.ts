@@ -70,7 +70,7 @@ async function runCommand(goal: string, options: { mock?: boolean }): Promise<vo
       console.error('未配置 DeepSeek API Key。请先运行 `agent-harness config`，或设置 DEEPSEEK_API_KEY 环境变量。')
       process.exit(1)
     }
-    llm = new DeepSeekProvider(apiKey as string)
+    llm = new DeepSeekProvider(apiKey)
   }
 
   // ---- 工具注册 ----

@@ -89,4 +89,4 @@ describe('runAgent', () => {
     expect(r).toContain('done')
     expect(tracer.getTrace().some(t => t.result.includes('hi'))).toBe(true)
   })
-}, { timeout: 15000 })
+})

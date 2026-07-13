@@ -19,7 +19,6 @@
 import type {
   Action,
   DangerousPattern,
-  HarnessConfig,
   Message,
   ToolChoice,
 } from './types'
@@ -162,7 +161,7 @@ export async function runAgent(
     }
 
     // ---- 8. 未知 action type ----
-    const unknownText = `未知动作类型: ${(action as Action).type}`
+    const unknownText = `未知动作类型: ${action.type}`
     context.push({ role: 'user', content: unknownText })
     tracer.record(steps, action, unknownText)
   }

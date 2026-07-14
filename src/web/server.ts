@@ -1,0 +1,423 @@
+// ============================================================
+// WebUI 调试面板 — Express 服务器
+// ============================================================
+//
+// 内联 HTML 与 src/web/public/index.html 内容一致。
+// 采用内联方案使 tsup build 产物自包含，运行时 node dist/index.js web
+// 不依赖磁盘上的 html 文件。
+//
+// 路由：
+//   GET /            → 返回面板 HTML（含 "Agent" 标题）
+//   GET /api/traces  → 读 tracesDir 下所有 trace-*.json，返回 { sessions: TraceEntry[][] }
+//                       无目录/无文件 → { sessions: [] }；单文件解析失败跳过
+
+import express from 'express'
+import * as fs from 'fs'
+import * as path from 'path'
+
+// ============================================================
+// 内联面板 HTML（与 src/web/public/index.html 内容一致）
+// ============================================================
+
+const PANEL_HTML = `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coding Agent Harness · 决策轨迹</title>
+<style>
+/* CSS 变量映射自项目根 DESIGN.md */
+:root {
+  --color-primary: #2563eb;
+  --color-primary-muted: #dbeafe;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e1;
+  --color-ink: #0f172a;
+  --color-ink-muted: #64748b;
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-title: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-caption: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Menlo, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --card-radius: 8px;
+  --card-padding: var(--space-4);
+  --card-border: 1px solid var(--color-border);
+  --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+
+  --badge-radius: 4px;
+  --badge-padding: 2px 8px;
+  --badge-font-size: 12px;
+
+  --step-row-radius: 4px;
+  --step-row-padding: var(--space-2) var(--space-3);
+  --step-row-bg: var(--color-surface-secondary);
+  --step-row-border: 1px solid var(--color-border);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  background: var(--color-surface-secondary);
+  min-height: 100vh;
+}
+
+.header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-5);
+}
+
+.header h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.header p {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  margin-top: var(--space-1);
+}
+
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-ink-muted);
+}
+
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: var(--space-3);
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-family: var(--font-title);
+  font-size: 18px;
+  margin-bottom: var(--space-2);
+}
+
+.empty-state small {
+  font-size: 12px;
+}
+
+/* 会话卡片 */
+.session-card {
+  background: var(--color-surface);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+}
+
+.session-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--card-padding);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-secondary);
+}
+
+.session-card-header .session-id {
+  font-family: var(--font-title);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.session-card-header .session-meta {
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+
+/* 步骤行 */
+.step-list {
+  padding: var(--card-padding);
+}
+
+.step-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: var(--space-3);
+  padding: var(--step-row-padding);
+  border: var(--step-row-border);
+  border-radius: var(--step-row-radius);
+  background: var(--step-row-bg);
+  margin-bottom: var(--space-2);
+}
+
+.step-row:last-child { margin-bottom: 0; }
+
+.step-number {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: center;
+  padding-top: 2px;
+}
+
+.step-content { min-width: 0; }
+
+.step-action-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+/* badge */
+.badge {
+  display: inline-block;
+  font-family: var(--font-caption);
+  font-size: 12px;
+  font-weight: 600;
+  padding: var(--badge-padding);
+  border-radius: var(--badge-radius);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.badge-call_tool { background: var(--color-primary-muted); color: var(--color-primary); }
+.badge-done { background: #dcfce7; color: var(--color-success); }
+.badge-take_note { background: #fef3c7; color: #b45309; }
+
+.step-tool-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.step-result {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+  word-break: break-all;
+}
+
+.step-feedback {
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: #fef3c7;
+  border-radius: var(--badge-radius);
+  font-size: 12px;
+  color: #92400e;
+}
+
+.step-feedback::before {
+  content: "反馈: ";
+  font-weight: 600;
+}
+
+.step-args {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  border-radius: var(--badge-radius);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 加载中 */
+.loading {
+  text-align: center;
+  padding: var(--space-6);
+  color: var(--color-ink-muted);
+  font-size: 14px;
+}
+
+/* 错误 */
+.error-state {
+  text-align: center;
+  padding: var(--space-5);
+  color: var(--color-danger);
+  background: #fef2f2;
+  border-radius: var(--card-radius);
+  margin-bottom: var(--space-4);
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <h1>Coding Agent Harness · 决策轨迹</h1>
+  <p>Agent 调试面板 — 本地 trace 回放</p>
+</header>
+<main class="main" id="app">
+  <div class="loading">加载中…</div>
+</main>
+<script>
+// ============================================================
+// 面板脚本 — 拉取 /api/traces 并渲染会话列表
+// ============================================================
+
+function renderEmpty() {
+  return '<div class="empty-state">' +
+    '<div class="icon">📋</div>' +
+    '<p>暂无 trace</p>' +
+    '<small>运行 agent 产生 trace 文件后刷新页面</small>' +
+    '</div>'
+}
+
+function escapeHtml(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function renderActionLine(entry) {
+  var a = entry.action
+  var badge = '<span class="badge badge-' + a.type + '">' + a.type + '</span>'
+  var detail = ''
+  if (a.type === 'call_tool') {
+    detail = '<span class="step-tool-name">' + escapeHtml(a.tool || '') + '</span>'
+  } else if (a.type === 'done') {
+    detail = '<span style="color:var(--color-ink)">' + escapeHtml(a.answer || '') + '</span>'
+  } else if (a.type === 'take_note') {
+    detail = '<span class="step-tool-name">' + escapeHtml(a.noteKey || '') + '</span>'
+  }
+  return badge + ' ' + detail
+}
+
+function renderArgs(entry) {
+  var a = entry.action
+  if (a.type !== 'call_tool' || !a.args) return ''
+  return '<div class="step-args">' + escapeHtml(JSON.stringify(a.args, null, 2)) + '</div>'
+}
+
+function renderFeedback(entry) {
+  if (!entry.feedback) return ''
+  return '<div class="step-feedback">' + escapeHtml(entry.feedback) + '</div>'
+}
+
+function renderStepRow(entry) {
+  return '<div class="step-row">' +
+    '<div class="step-number">#' + entry.step + '</div>' +
+    '<div class="step-content">' +
+      '<div class="step-action-line">' + renderActionLine(entry) + '</div>' +
+      '<div class="step-result">' + escapeHtml(entry.result) + '</div>' +
+      renderArgs(entry) +
+      renderFeedback(entry) +
+    '</div>' +
+    '</div>'
+}
+
+function renderSession(session, index) {
+  var steps = session.map(function(entry) { return renderStepRow(entry) }).join('')
+  var stepCount = session.length
+  var firstTs = session.length > 0 ? session[0].timestamp : ''
+  return '<div class="session-card">' +
+    '<div class="session-card-header">' +
+      '<span class="session-id">会话 #' + (index + 1) + '</span>' +
+      '<span class="session-meta">' + stepCount + ' 步' + (firstTs ? ' · ' + firstTs.slice(0, 19).replace('T', ' ') : '') + '</span>' +
+    '</div>' +
+    '<div class="step-list">' + steps + '</div>' +
+    '</div>'
+}
+
+function render(data) {
+  var sessions = data.sessions || []
+  if (sessions.length === 0) return renderEmpty()
+  return sessions.map(function(session, i) { return renderSession(session, i) }).join('')
+}
+
+fetch('/api/traces')
+  .then(function(res) { return res.json() })
+  .then(function(data) {
+    document.getElementById('app').innerHTML = render(data)
+  })
+  .catch(function(err) {
+    document.getElementById('app').innerHTML =
+      '<div class="error-state">加载失败: ' + escapeHtml(err.message) + '</div>'
+  })
+</script>
+</body>
+</html>`
+
+// ============================================================
+// startWebServer
+// ============================================================
+
+/**
+ * 启动 WebUI 调试面板服务器。
+ *
+ * @param tracesDir  trace 文件目录（trace-*.json 所在路径）
+ * @param port       HTTP 端口，默认 3000
+ * @returns url 与关闭函数 close()
+ */
+export function startWebServer(
+  tracesDir: string,
+  port: number = 3000,
+): Promise<{ url: string; close(): Promise<void> }> {
+  const app = express()
+
+  // ---- GET / —— 返回面板 HTML ----
+  app.get('/', (_req, res) => {
+    res.type('html').send(PANEL_HTML)
+  })
+
+  // ---- GET /api/traces —— 读 trace 文件 ----
+  app.get('/api/traces', (_req, res) => {
+    let files: string[]
+    try {
+      files = fs.readdirSync(tracesDir)
+    } catch {
+      // 目录不存在或不可读 → 空 sessions
+      return res.json({ sessions: [] })
+    }
+
+    const sessions: unknown[] = []
+    for (const file of files) {
+      if (!file.startsWith('trace-') || !file.endsWith('.json')) continue
+      try {
+        const raw = fs.readFileSync(path.join(tracesDir, file), 'utf-8')
+        sessions.push(JSON.parse(raw))
+      } catch {
+        // 单个文件解析失败跳过，不中断整体
+      }
+    }
+    res.json({ sessions })
+  })
+
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, () => {
+      resolve({
+        url: `http://localhost:${port}`,
+        close: () => new Promise<void>((r) => server.close(() => r())),
+      })
+    })
+    server.on('error', reject)
+  })
+}

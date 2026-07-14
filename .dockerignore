@@ -1,0 +1,16 @@
+# 构建上下文忽略项 — 避免敏感文件与无关产物进镜像
+# 安全：.env 绝不进镜像（凭据不泄露）
+.env
+.env.*
+
+# 依赖与构建产物（builder 阶段会重新 npm ci 与 build，无需拷入）
+node_modules
+dist
+
+# Git 与过程文件（不入镜像）
+.git
+.gitignore
+.superpowers
+
+# 杂项
+*.log

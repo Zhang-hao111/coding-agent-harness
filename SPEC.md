@@ -429,15 +429,10 @@ npx coding-agent-harness
 |------|------|---------|
 | DeepSeek API 兼容性问题 | LLM 调用失败 | 使用标准 OpenAI 协议，有备选供应商 |
 | DeepSeekProvider 文本解析过弱 | 真实运行可能空转到 MAX_STEPS | v2.0 已切换至 function calling（见 SPEC-2.md） |
-| 危险命令模式匹配不足 | 漏拦危险操作 | MVP 覆盖最常见模式并分级，深入阶段扩展 |
+| 危险命令模式匹配不足 | 漏拦危险操作 | MVP 覆盖最常见模式并分级 |
 | 加密文件被暴力破解 | 凭据泄露 | 使用 AES-256-GCM + 建议强密码 |
-| WebUI 仅本地、无公网 URL | 不满足通用要求 §五"线上部署 URL"硬交付 | MVP 交付本地 `localhost:3000`，公网部署列未决、阶段三单开 |
+| WebUI 仅本地、无公网 URL | 不满足通用要求 §五"线上部署 URL"硬交付 | MVP 交付本地 `localhost:3000` |
 | CI 选用 GitHub Actions 而非通用要求示例的 `.gitlab-ci.yml` | 助教按字面核对 | SPEC/README 注明等价实现，job 名含 `unit-test` |
-
-**未决问题：**
-- 深入阶段的具体传感器列表（TypeScript compiler / ESLint 等）—— 在深入阶段规划时决定
-- WebUI 的公网部署平台（Railway / Render / 自建 VPS）—— 阶段三决定
-- `approver` 注入点在真实运行外的其他挂载方式 —— 视 HITL 实测体验决定
 
 ---
 

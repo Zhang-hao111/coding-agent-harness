@@ -167,12 +167,5 @@
 7. **机制即代码的可验证性**——所有核心机制（护栏、反馈闭环、凭据加密）有 mock-LLM 确定性单元测试，移除真实 LLM 后仍能验证（机制演示①②③）。这是与"提示词工程"的根本区别。
 
 8. **Minor 不阻塞但需 triage**——累积的 Minor（Task 8 死 import、Task 7 getTrace 浅拷贝、Task 6 脏数据守卫等）记入 ledger，留 final whole-branch review 集中 triage，避免 roll-up 无人读导致静默丢弃。
-
----
-
-## 五、下一步
-
-- 全部 15 个 task 完成后：运行 PLAN §"全部完成后验证"（npm test 全绿、机制演示、build、CLI --help、WebUI、docker build、CI pass）。
-- final whole-branch review（superpowers:requesting-code-review，最强模型，triage 累积 Minor）。
 - finishing-a-development-branch（feat/mvp → master PR/merge）。
 - REFLECTION.md 由学生本人手写。

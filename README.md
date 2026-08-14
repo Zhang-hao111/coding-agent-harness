@@ -116,12 +116,6 @@ coding-agent-harness/
 | v1.0 | `main` | 六大机制实现（决策封装、工具系统、反馈闭环、治理护栏、记忆、可观测性），Mock LLM 驱动，57/57 测试 |
 | v2.0 | `task/16-function-calling` | DeepSeek 真实 LLM 端到端执行，OpenAI 兼容 function calling 协议，工具参数 JSON Schema 暴露 |
 
-后续规划：
-
-- 反馈闭环深入：自动运行 tsc/lint/test → 结构化解析 → 失败分类 → 多轮修正
-- WebUI 调试面板完善
-- 线上部署
-
 ## 许可证
 
 MIT

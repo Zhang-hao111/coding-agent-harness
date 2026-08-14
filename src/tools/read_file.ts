@@ -9,6 +9,13 @@ import type { ToolDef, ToolResult } from '../types'
 export class ReadFileTool implements ToolDef {
   name = 'read_file'
   description = '读取指定路径的文件内容'
+  parameters = {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: '文件路径（绝对或相对）' },
+    },
+    required: ['path'],
+  }
 
   async execute(args: Record<string, unknown>): Promise<ToolResult> {
     const raw = args.path

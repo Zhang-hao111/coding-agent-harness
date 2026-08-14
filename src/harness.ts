@@ -39,9 +39,9 @@ export interface RunOptions {
   approver?: Approver
 }
 
-// 工具元数据（MVP：仅作元数据传入，未启用 function calling）
+// 工具元数据（含参数 schema，用于 function calling）
 function toolChoices(tools: ToolRegistry): ToolChoice[] {
-  return tools.list().map((t) => ({ name: t.name, description: t.description }))
+  return tools.list().map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }))
 }
 
 /**

@@ -118,6 +118,7 @@ export interface ToolResult {
 export interface ToolDef {
   name: string
   description: string
+  parameters?: Record<string, unknown>  // 参数 JSON Schema，用于 function calling
   execute(args: Record<string, unknown>): Promise<ToolResult>
 }
 

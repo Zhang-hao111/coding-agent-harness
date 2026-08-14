@@ -140,7 +140,12 @@ export async function runAgent(
           // 失败：push 结果文本 + push 反馈（重点维度反馈闭环核心）
           resultText = result.error ?? '工具执行失败（无错误信息）'
           feedback = `工具执行失败: ${resultText}。请修正你的方法后重试。`
-          context.push({ role: 'user', content: resultText })
+          // function calling 模式下须回灌 tool 消息应答 tool_call，否则 DeepSeek 400
+          if (action.tool_call_id) {
+            context.push({ role: 'tool', content: resultText, tool_call_id: action.tool_call_id } as Message)
+          } else {
+            context.push({ role: 'user', content: resultText })
+          }
           context.push({ role: 'user', content: feedback })
           tracer.record(steps, action, resultText, feedback)
         }
@@ -148,7 +153,12 @@ export async function runAgent(
         // 异常：push 异常文本 + 反馈
         const msg = e instanceof Error ? e.message : String(e)
         feedback = `工具执行失败: ${msg}。请修正你的方法后重试。`
-        context.push({ role: 'user', content: feedback })
+        if (action.tool_call_id) {
+          context.push({ role: 'tool', content: msg, tool_call_id: action.tool_call_id } as Message)
+          context.push({ role: 'user', content: feedback })
+        } else {
+          context.push({ role: 'user', content: feedback })
+        }
         tracer.record(steps, action, msg, feedback)
       }
       continue
@@ -160,6 +170,10 @@ export async function runAgent(
       const value = action.noteValue ?? ''
       await memory.write(key, value)
       const noteText = `已记录 ${key}=${value}`
+      // function calling 模式下回灌 tool 消息，避免 DeepSeek 400（tool_call 无对应 tool 响应）
+      if (action.tool_call_id) {
+        context.push({ role: 'tool', content: noteText, tool_call_id: action.tool_call_id } as Message)
+      }
       tracer.record(steps, action, noteText)
       continue
     }

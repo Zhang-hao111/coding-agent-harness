@@ -1,0 +1,12 @@
+{
+  // 学号
+  "id": "241250020",
+  // 姓名
+  "name": "张皓",
+  // 仓库托管链接
+  "repo_url": "https://github.com/Zhang-hao111/coding-agent-harness",
+  // 是否部署
+  "is_deployed": false,
+  // 部署或发布链接，上一项如果是 false 此处就是 release 链接，否则就是 deploy 链接
+  "deploy_release_url": "https://github.com/Zhang-hao111/coding-agent-harness/releases/tag/v1.0"
+}

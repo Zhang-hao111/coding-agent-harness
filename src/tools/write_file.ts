@@ -9,6 +9,14 @@ import type { ToolDef, ToolResult } from '../types'
 export class WriteFileTool implements ToolDef {
   name = 'write_file'
   description = '将内容写入指定路径的文件，自动创建父目录'
+  parameters = {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: '文件路径（绝对或相对）' },
+      content: { type: 'string', description: '写入的内容' },
+    },
+    required: ['path', 'content'],
+  }
 
   async execute(args: Record<string, unknown>): Promise<ToolResult> {
     const raw = args.path

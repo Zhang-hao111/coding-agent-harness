@@ -7,7 +7,8 @@
 ## 核心特性
 
 - **Agent 主循环** — 自实现的 while 循环：组织上下文 → 调用 LLM → 解析动作 → 分发执行 → 回灌结果 → 停机判断
-- **工具系统** — 读写文件、执行 shell 命令
+- **工具系统** — 读写文件、执行 shell 命令（参数通过 JSON Schema 暴露给 LLM）
+- **Function Calling** — DeepSeek 通过 OpenAI 兼容协议直接调用工具，无需文本协议解析
 - **治理护栏** — 危险命令自动拦截，拦截逻辑是代码而非提示词
 - **反馈闭环** — 工具执行失败时自动回灌错误信息，驱动 agent 自我修正
 - **记忆系统** — 跨会话键值存储，按需检索
@@ -39,8 +40,12 @@ npm run agent-harness config
 ### 运行
 
 ```bash
-# 运行 agent
-npm run agent-harness run "你的任务描述"
+# 运行 agent（需要 DEEPSEEK_API_KEY 环境变量）
+export DEEPSEEK_API_KEY=sk-your-key
+node dist/index.js run "写一个 hello.txt 文件，内容为 Hello World"
+
+# 或用 mock LLM 模式（无需 API Key，仅测试 harness 行为）
+node dist/index.js run --mock "测试任务"
 
 # 启动 WebUI 调试面板
 npm run agent-harness web
@@ -60,17 +65,17 @@ coding-agent-harness/
 ├── src/
 │   ├── index.ts           # CLI 入口
 │   ├── harness.ts         # Harness 核心 + agent loop
-│   ├── llm/               # LLM 抽象层（interface + DeepSeek 实现）
+│   ├── llm/               # LLM 抽象层（interface + DeepSeek + tools 定义）
 │   ├── tools/             # 工具系统（read_file / write_file / shell）
 │   ├── guardrail.ts       # 治理护栏
-│   ├── feedback/          # 反馈闭环（传感器 → 解析器 → 分类器 → 注入器）
 │   ├── memory.ts          # 跨会话记忆
 │   ├── tracer.ts          # 可观测性
 │   ├── config.ts          # 配置加载
 │   └── types.ts           # 共享类型
 ├── webui/                 # Open Design 调试面板
 ├── tests/                 # 单元测试（含 mock-LLM 测试）
-├── SPEC.md                # 设计文档
+├── SPEC.md                # 设计文档（v1.0）
+├── SPEC-2.md              # 设计文档（v2.0 function calling）
 ├── PLAN.md                # 实现计划
 ├── AGENT_LOG.md           # 过程日志
 ├── Dockerfile
@@ -104,7 +109,14 @@ coding-agent-harness/
 
 ## 项目状态
 
-本项目处于 **MVP 阶段**，核心功能已可运行。后续规划：
+本项目已完成 **v1.0（MVP）** 和 **v2.0（Function Calling 集成）** 两个阶段，核心功能已可运行。
+
+| 阶段 | 版本 | 内容 |
+|------|------|------|
+| v1.0 | `main` | 六大机制实现（决策封装、工具系统、反馈闭环、治理护栏、记忆、可观测性），Mock LLM 驱动，57/57 测试 |
+| v2.0 | `task/16-function-calling` | DeepSeek 真实 LLM 端到端执行，OpenAI 兼容 function calling 协议，工具参数 JSON Schema 暴露 |
+
+后续规划：
 
 - 反馈闭环深入：自动运行 tsc/lint/test → 结构化解析 → 失败分类 → 多轮修正
 - WebUI 调试面板完善

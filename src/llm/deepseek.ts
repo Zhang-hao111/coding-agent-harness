@@ -43,6 +43,7 @@ export class DeepSeekProvider implements LLMProvider {
 
     // Function calling 路径
     if (choice.tool_calls && choice.tool_calls.length > 0) {
+      // harness 单轮只执行一个 action，故只取首个 tool_call 解析
       const toolCall = choice.tool_calls[0]
       const action = parseToolCall({
         id: toolCall.id,
@@ -55,11 +56,13 @@ export class DeepSeekProvider implements LLMProvider {
         message: {
           role: 'assistant',
           content: choice.content,
-          tool_calls: choice.tool_calls.map(tc => ({
-            id: tc.id,
+          // 只回灌被执行的那个 tool_call：其余 tool_call_id 无对应 tool 响应，
+          // 若一并回灌会导致下一轮 DeepSeek 400（tool_call 无对应 tool message）
+          tool_calls: [{
+            id: toolCall.id,
             type: 'function' as const,
-            function: { name: tc.function.name, arguments: tc.function.arguments },
-          })),
+            function: { name: toolCall.function.name, arguments: toolCall.function.arguments },
+          }],
         },
       }
     }

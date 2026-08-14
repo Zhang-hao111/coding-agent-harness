@@ -96,4 +96,24 @@ describe('buildToolDefinitions', () => {
     const done = defs.find(d => d.function.name === 'done')!
     expect(done.function.parameters.required).toContain('answer')
   })
+
+  it('passes through tool parameters schema (v2.0 function calling)', () => {
+    const choices = [{
+      name: 'shell',
+      description: '执行 shell 命令',
+      parameters: {
+        type: 'object',
+        properties: { command: { type: 'string', description: '要执行的命令' } },
+        required: ['command'],
+      },
+    }]
+    const defs = buildToolDefinitions(choices)
+    const shell = defs.find(d => d.function.name === 'shell')!
+    // 必须透传真实 schema，而非硬编码空 properties——否则 LLM 不知道参数名/类型
+    expect(shell.function.parameters).toMatchObject({
+      type: 'object',
+      properties: { command: { type: 'string' } },
+      required: ['command'],
+    })
+  })
 })

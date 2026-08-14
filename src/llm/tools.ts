@@ -27,7 +27,9 @@ export function buildToolDefinitions(
     function: {
       name: t.name,
       description: t.description,
-      parameters: { type: 'object', properties: {} },
+      // 透传工具真实参数 schema；未提供时降级为空 object
+      // （v2.0 function calling：LLM 据此知道参数名/类型/required）
+      parameters: t.parameters ?? { type: 'object', properties: {} },
     },
   }))
 

@@ -49,7 +49,7 @@ export type Message = SystemMessage | UserMessage | AssistantMessage | ToolMessa
 export interface ToolChoice {
   name: string
   description: string
-  parameters?: Record<string, unknown>    // MVP 仅作元数据传入，未启用 function calling
+  parameters?: Record<string, unknown>    // 工具参数 JSON Schema，buildToolDefinitions 透传给 LLM（v2.0 function calling）
 }
 
 // ---- DangerousPattern & Guardrail ----

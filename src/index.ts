@@ -1,5 +1,5 @@
 // ============================================================
-// CLI 入口 — run / config / web 三命令
+// CLI 入口 — run / config 两命令
 // ============================================================
 //
 // 决策封装维度的装配点：loadConfig → CredentialManager → LLM（Mock/DeepSeek）
@@ -55,7 +55,14 @@ async function runCommand(goal: string, options: { mock?: boolean }): Promise<vo
   // ---- LLM 装配：--mock 用 MockLLM；否则 DeepSeek ----
   let llm: LLMProvider
   if (options.mock) {
-    llm = new MockLLM()
+    // MockLLM 需预设响应；CLI --mock 挂一个固定 canned 脚本（write_file + done）
+    // 演示主循环全链路，不调用真实 LLM。task 文本仅作日志，不参与决策。
+    const mock = new MockLLM()
+    mock.setResponses([
+      { type: 'call_tool', tool: 'write_file', args: { path: 'hello.txt', content: 'Hello World' } },
+      { type: 'done', answer: 'mock 模式：已演示 write_file + done 主循环（未调用真实 LLM）' },
+    ])
+    llm = mock
   } else {
     // 真实模式：env 有则用，否则凭据文件，否则报错退出
     const envKey = process.env.DEEPSEEK_API_KEY
@@ -126,18 +133,6 @@ async function configCommand(options: { status?: boolean; clear?: boolean }): Pr
 }
 
 // ============================================================
-// web — 启动 WebUI 调试面板（Express server）
-// ============================================================
-
-import { startWebServer } from './web/server'
-
-async function webCommand(): Promise<void> {
-  const cfg = loadConfig()
-  const srv = await startWebServer(cfg.tracesDir, 3000)
-  console.log('Web UI 已启动：' + srv.url + '（Ctrl+C 退出）')
-}
-
-// ============================================================
 // 主程序
 // ============================================================
 
@@ -164,13 +159,6 @@ program
     await configCommand(options)
   })
 
-program
-  .command('web')
-  .description('启动 Web UI（Task 12）')
-  .action(async () => {
-    await webCommand()
-  })
-
 // ============================================================
 // 主入口守卫
 // ============================================================
@@ -180,4 +168,4 @@ if (isMain) {
   program.parse(process.argv)
 }
 
-export { program, runCommand, configCommand, webCommand }
+export { program, runCommand, configCommand }

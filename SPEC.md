@@ -54,7 +54,7 @@ LLM 本身只具备"思考"能力——给定上下文，它决定下一步做�
 | 边界条件 | `MAX_STEPS = 50` 上限；步骤超限后强制返回当前结果 |
 | 错误处理 | LLM 调用失败（网络错误/超时）后重试 2 次，仍失败则返回错误信息 |
 
-> **MVP 限制：** `DeepSeekProvider` 在 MVP 阶段用文本协议解析 action（检测 `DONE` 标记 + 关键词），未启用 function calling。若 LLM 返回内容无法解析出 action，主循环将其作为 assistant message 回灌后继续循环——真实运行可能空转到 `MAX_STEPS`。深入阶段切换至 OpenAI 兼容的 function calling，消除该限制。 |
+> **v2.0 已解决：** `DeepSeekProvider` 已切换至 OpenAI 兼容的 function calling 协议（见 `SPEC-2.md`）。不再使用文本协议解析 action，真实运行不再空转。 |
 
 ### 3.2 工具系统
 
@@ -428,7 +428,7 @@ npx coding-agent-harness
 | 风险 | 影响 | 缓解措施 |
 |------|------|---------|
 | DeepSeek API 兼容性问题 | LLM 调用失败 | 使用标准 OpenAI 协议，有备选供应商 |
-| DeepSeekProvider 文本解析过弱 | 真实运行可能空转到 MAX_STEPS | MVP 标注限制，深入阶段切 function calling |
+| DeepSeekProvider 文本解析过弱 | 真实运行可能空转到 MAX_STEPS | v2.0 已切换至 function calling（见 SPEC-2.md） |
 | 危险命令模式匹配不足 | 漏拦危险操作 | MVP 覆盖最常见模式并分级，深入阶段扩展 |
 | 加密文件被暴力破解 | 凭据泄露 | 使用 AES-256-GCM + 建议强密码 |
 | WebUI 仅本地、无公网 URL | 不满足通用要求 §五"线上部署 URL"硬交付 | MVP 交付本地 `localhost:3000`，公网部署列未决、阶段三单开 |

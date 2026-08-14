@@ -8,6 +8,13 @@ import type { ToolDef, ToolResult } from '../types'
 export class ShellTool implements ToolDef {
   name = 'shell'
   description = '执行 shell 命令并返回 stdout'
+  parameters = {
+    type: 'object',
+    properties: {
+      command: { type: 'string', description: '要执行的 shell 命令' },
+    },
+    required: ['command'],
+  }
   private timeout: number  // 秒
 
   constructor(timeout: number = 30) {

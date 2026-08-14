@@ -62,3 +62,38 @@ describe('DeepSeekProvider', () => {
     expect(p).toBeDefined()
   })
 })
+
+// ============================================================
+// buildToolDefinitions 测试
+// ============================================================
+import { buildToolDefinitions } from '../src/llm/tools'
+
+describe('buildToolDefinitions', () => {
+  it('includes registered tools', () => {
+    const choices = [{ name: 'read_file', description: 'Read a file' }]
+    const defs = buildToolDefinitions(choices)
+    expect(defs.some(d => d.function.name === 'read_file')).toBe(true)
+  })
+
+  it('includes done and take_note by default', () => {
+    const defs = buildToolDefinitions([])
+    expect(defs.some(d => d.function.name === 'done')).toBe(true)
+    expect(defs.some(d => d.function.name === 'take_note')).toBe(true)
+  })
+
+  it('excludes done when includeDone=false', () => {
+    const defs = buildToolDefinitions([], false)
+    expect(defs.some(d => d.function.name === 'done')).toBe(false)
+  })
+
+  it('all definitions have type=function', () => {
+    const defs = buildToolDefinitions([{ name: 'x', description: 'x' }])
+    defs.forEach(d => expect(d.type).toBe('function'))
+  })
+
+  it('done definition has required answer parameter', () => {
+    const defs = buildToolDefinitions([])
+    const done = defs.find(d => d.function.name === 'done')!
+    expect(done.function.parameters.required).toContain('answer')
+  })
+})

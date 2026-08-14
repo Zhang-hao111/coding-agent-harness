@@ -8,6 +8,8 @@ import { ShellTool } from '../src/tools/shell'
 import { FileMemory } from '../src/memory'
 import { Tracer } from '../src/tracer'
 import { DEFAULT_DANGEROUS_PATTERNS } from '../src/guardrail'
+import type { LLMProvider } from '../src/llm/interface'
+import type { Message } from '../src/types'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -88,5 +90,30 @@ describe('runAgent', () => {
     const r = await runAgent('goal', llm, registry, { maxSteps: 10, dangerousPatterns: patterns, memory, tracer, approver })
     expect(r).toContain('done')
     expect(tracer.getTrace().some(t => t.result.includes('hi'))).toBe(true)
+  })
+})
+
+describe('runAgent action=undefined handling', () => {
+  it('does not silently spin when action is undefined', async () => {
+    const { registry, memory, tracer } = setup()
+    let callCount = 0
+    let secondCallContext: Message[] = []
+    const customLLM: LLMProvider = {
+      chat: async (messages) => {
+        callCount++
+        if (callCount === 1) {
+          return { message: { role: 'assistant', content: 'I am thinking...' } }
+        }
+        secondCallContext = messages
+        return { action: { type: 'done', answer: 'recovered' }, message: { role: 'assistant', content: 'done' } }
+      },
+    }
+    const r = await runAgent('test', customLLM, registry, {
+      maxSteps: 10, dangerousPatterns: DEFAULT_DANGEROUS_PATTERNS, memory, tracer,
+    })
+    expect(r).toBe('recovered')
+    expect(callCount).toBe(2)
+    // 第二轮 context 中应包含 hint，提示 LLM 必须调用工具或返回 done
+    expect(secondCallContext.some(m => m.role === 'user' && m.content.includes('请调用'))).toBe(true)
   })
 })

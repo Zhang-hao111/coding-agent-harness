@@ -39,9 +39,9 @@ export interface RunOptions {
   approver?: Approver
 }
 
-// 工具元数据（MVP：仅作元数据传入，未启用 function calling）
+// 工具元数据（含参数 schema，用于 function calling）
 function toolChoices(tools: ToolRegistry): ToolChoice[] {
-  return tools.list().map((t) => ({ name: t.name, description: t.description }))
+  return tools.list().map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }))
 }
 
 /**
@@ -55,9 +55,9 @@ export async function runAgent(
 ): Promise<string> {
   const { maxSteps, dangerousPatterns, memory, tracer, approver } = options
 
-  // ---- 1. 初始 context = system prompt + goal；注入 project_context ----
+  // ---- 1. 初始 context = goal；注入 project_context ----
+  // system prompt 由 DeepSeekProvider.chat() 内部动态构建（见 src/llm/deepseek.ts）
   const context: Message[] = [
-    { role: 'system', content: '你是 Coding Agent Harness 中的决策 LLM。每步返回一个 action。' },
     { role: 'user', content: goal },
   ]
   const projectContext = await memory.read('project_context')
@@ -80,9 +80,9 @@ export async function runAgent(
       context.push(response.message)
     }
 
-    // ---- 3. action 为 null → continue ----
+    // ---- 3. action 为 null → 追加 hint 提示 LLM 必须调用工具或返回 done ----
     if (action === undefined || action === null) {
-      // 已 push assistant message，直接进入下一轮
+      context.push({ role: 'user', content: '请调用一个可用工具来完成任务，或调用 done 来结束任务。' })
       continue
     }
 
@@ -130,13 +130,22 @@ export async function runAgent(
         const result = await tools.execute(toolName, args)
         if (result.success) {
           resultText = result.data ?? ''
-          context.push({ role: 'user', content: resultText })
+          if (action.tool_call_id) {
+            context.push({ role: 'tool', content: resultText, tool_call_id: action.tool_call_id } as Message)
+          } else {
+            context.push({ role: 'user', content: resultText })
+          }
           tracer.record(steps, action, resultText)
         } else {
           // 失败：push 结果文本 + push 反馈（重点维度反馈闭环核心）
           resultText = result.error ?? '工具执行失败（无错误信息）'
           feedback = `工具执行失败: ${resultText}。请修正你的方法后重试。`
-          context.push({ role: 'user', content: resultText })
+          // function calling 模式下须回灌 tool 消息应答 tool_call，否则 DeepSeek 400
+          if (action.tool_call_id) {
+            context.push({ role: 'tool', content: resultText, tool_call_id: action.tool_call_id } as Message)
+          } else {
+            context.push({ role: 'user', content: resultText })
+          }
           context.push({ role: 'user', content: feedback })
           tracer.record(steps, action, resultText, feedback)
         }
@@ -144,7 +153,12 @@ export async function runAgent(
         // 异常：push 异常文本 + 反馈
         const msg = e instanceof Error ? e.message : String(e)
         feedback = `工具执行失败: ${msg}。请修正你的方法后重试。`
-        context.push({ role: 'user', content: feedback })
+        if (action.tool_call_id) {
+          context.push({ role: 'tool', content: msg, tool_call_id: action.tool_call_id } as Message)
+          context.push({ role: 'user', content: feedback })
+        } else {
+          context.push({ role: 'user', content: feedback })
+        }
         tracer.record(steps, action, msg, feedback)
       }
       continue
@@ -156,6 +170,10 @@ export async function runAgent(
       const value = action.noteValue ?? ''
       await memory.write(key, value)
       const noteText = `已记录 ${key}=${value}`
+      // function calling 模式下回灌 tool 消息，避免 DeepSeek 400（tool_call 无对应 tool 响应）
+      if (action.tool_call_id) {
+        context.push({ role: 'tool', content: noteText, tool_call_id: action.tool_call_id } as Message)
+      }
       tracer.record(steps, action, noteText)
       continue
     }

@@ -12,7 +12,7 @@
 - **治理护栏** — 危险命令自动拦截，拦截逻辑是代码而非提示词
 - **反馈闭环** — 工具执行失败时自动回灌错误信息，驱动 agent 自我修正
 - **记忆系统** — 跨会话键值存储，按需检索
-- **可观测性** — 每步决策与动作完整记录，支持 WebUI 调试面板
+- **可观测性** — 每步决策与动作完整记录为 trace 文件，便于调试与复盘
 - **凭据安全** — API Key 加密存储，不进入源码或日志
 
 ## 快速开始
@@ -33,8 +33,11 @@ cd coding-agent-harness
 # 安装依赖
 npm install
 
-# 配置 API Key（首次运行）
-npm run agent-harness config
+# 构建
+npm run build
+
+# 配置 API Key（首次运行，加密存储）
+node dist/index.js config
 ```
 
 ### 运行
@@ -44,11 +47,9 @@ npm run agent-harness config
 export DEEPSEEK_API_KEY=sk-your-key
 node dist/index.js run "写一个 hello.txt 文件，内容为 Hello World"
 
-# 或用 mock LLM 模式（无需 API Key，仅测试 harness 行为）
+# 或用 mock LLM 模式（无需 API Key，跑固定 canned 脚本验证 harness 主循环）
+# --mock 会执行 write_file(hello.txt) + done，不调用真实 LLM
 node dist/index.js run --mock "测试任务"
-
-# 启动 WebUI 调试面板
-npm run agent-harness web
 ```
 
 ### Docker
@@ -65,14 +66,13 @@ coding-agent-harness/
 ├── src/
 │   ├── index.ts           # CLI 入口
 │   ├── harness.ts         # Harness 核心 + agent loop
-│   ├── llm/               # LLM 抽象层（interface + DeepSeek + tools 定义）
+│   ├── llm/               # LLM 抽象层（interface + DeepSeek + MockLLM + tools 定义）
 │   ├── tools/             # 工具系统（read_file / write_file / shell）
 │   ├── guardrail.ts       # 治理护栏
 │   ├── memory.ts          # 跨会话记忆
-│   ├── tracer.ts          # 可观测性
+│   ├── tracer.ts          # 可观测性（trace 文件）
 │   ├── config.ts          # 配置加载
 │   └── types.ts           # 共享类型
-├── webui/                 # Open Design 调试面板
 ├── tests/                 # 单元测试（含 mock-LLM 测试）
 ├── SPEC.md                # 设计文档（v1.0）
 ├── SPEC-2.md              # 设计文档（v2.0 function calling）
@@ -85,7 +85,7 @@ coding-agent-harness/
 ## 凭据安全
 
 - **API Key 绝不硬编码**进源码，绝不提交进 Git
-- 加密存储到 `~/.agent-harness/credentials.enc`（AES-256-GCM）
+- 加密存储到 `~/.agent-harness/credentials.json`（AES-256-GCM，二进制 payload）
 - 也支持通过 `DEEPSEEK_API_KEY` 环境变量读取（明文风险，详见 SPEC）
 - 凭据状态查看时不回显明文
 
@@ -104,7 +104,6 @@ coding-agent-harness/
 | LLM 供应商 | DeepSeek（OpenAI 兼容协议） |
 | CLI | commander |
 | 测试 | vitest |
-| WebUI 设计系统 | Open Design |
 | 分发 | Docker / npm |
 
 ## 项目状态

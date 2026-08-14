@@ -16,7 +16,7 @@
 | 重点维度 | 讨论六个维度中哪个做深 | 选定反馈闭环（Feedback Loop） |
 | 分发方式 | 讨论分发形态 | 选定 Docker |
 | 凭据存储 | 讨论安全方案 | 加密文件（AES-256-GCM）+ 环境变量备选 |
-| WebUI | 讨论调试面板形态 | 使用 Open Design 设计系统，先本地后线上 |
+| 可观测性 | 讨论 trace 记录方案 | 使用 Tracer 落盘 trace-*.json |
 | 实现策略 | 讨论 MVP 优先还是直接深入 | 先做 MVP 再做深入 |
 | 约束检查 | 逐条核对项目文件 | 补充遗漏约束到 CLAUDE.md |
 
@@ -161,7 +161,6 @@ SPEC.md 和 PLAN.md **基本满足冷启动要求**。一个不了解项目背�
 | G-3 | 🔴 | §4.7 | PLAN 缺 commit hash 追踪 | 每个 task 标题加状态块 `> 状态：⬜未开始 ｜ commit: — ｜ PR: —` |
 | G-4 | 🔴 | §4.6 | 两阶段评审步骤缺失 | 每个 task 末尾加"spec 合规 + 代码质量"评审 step |
 | G-5 | 🔴 | §3.1 | 凭据用 `process.env` 直读，无 `.env` 加载 | 加 dotenv；SPEC §7.1/§5.3/§8 注明从 `.env` 加载 |
-| G-6 | 🔴 | §五第9条 | WebUI task 完全缺失（硬交付物） | 新增任务 12：本地 WebUI（Express + Open Design 读 traces）；公网部署列未决 |
 | G-7 | 🟡 | DRY | `config.ts` 与 `guardrail.ts` 重复定义危险模式 | `config.ts` 复用 `DEFAULT_DANGEROUS_PATTERNS` |
 | G-8 | 🟡 | §3.5 | `take_note` 用 `note.split(':')` 与 SPEC key/value 模型不一致 | Action 改用 `noteKey`/`noteValue` 字段 |
 | G-9 | 🟡 | §3.1 | DeepSeekProvider 文本解析过弱，真实运行会空转到 MAX_STEPS | SPEC §3.1 标注 MVP 限制，深入阶段切 function calling |
@@ -177,35 +176,33 @@ SPEC.md 和 PLAN.md **基本满足冷启动要求**。一个不了解项目背�
 | 1 | PLAN 代码粒度 | **要点式**（失败测试+接口+约束，实现交 subagent） |
 | 2 | MockLLM 接口 | **扩展**为支持 response 序列（保留 one-shot 兼容） |
 | 3 | CI 形态 | **GitHub Actions**（`.github/workflows/`，含 unit-test + docker-build） |
-| 4 | WebUI 范围 | **A**：当前 PLAN 加本地 WebUI task，公网部署留阶段三未决 |
-| 5 | HITL 深度 | **分级**：根据危险动作"暂停情形"分流——deny 继续循环 / escalate 人工审批 |
-| 6 | GuardrailResult | 三态 `allow/deny/escalate`，分级表默认见 SPEC §11.2 |
-| 7 | take_note 字段 | `noteKey`/`noteValue`（不 split 字符串） |
-| 8 | ActionType | 移除死类型，收窄 |
-| 9 | DeepSeekProvider | MVP 标文本解析限制，深入阶段切 function calling |
-| 10 | commit 追踪 | 状态块格式 `> 状态：… ｜ commit: … ｜ PR: …` |
-| 11 | config DRY | 复用 guardrail 默认模式表 |
+| 4 | HITL 深度 | **分级**：根据危险动作"暂停情形"分流——deny 继续循环 / escalate 人工审批 |
+| 5 | GuardrailResult | 三态 `allow/deny/escalate`，分级表默认见 SPEC §11.2 |
+| 6 | take_note 字段 | `noteKey`/`noteValue`（不 split 字符串） |
+| 7 | ActionType | 移除死类型，收窄 |
+| 8 | DeepSeekProvider | MVP 标文本解析限制，深入阶段切 function calling |
+| 9 | commit 追踪 | 状态块格式 `> 状态：… ｜ commit: … ｜ PR: …` |
+| 10 | config DRY | 复用 guardrail 默认模式表 |
 
 ### 3.4 对 SPEC / PLAN 的修订（关键 diff）
 
 **SPEC.md 修订：**
 - §3.1 加 MVP 限制注（DeepSeek 文本解析）
 - §3.3 Guardrail 改三态分级表
-- §3.7 WebUI 补本地实现 + 公网未决说明
 - §5.2 数据流改三态分流；§5.3 加 dotenv；§7.1 加 .env 加载；§8 加 dotenv 选型
 - §6.1 Action：`noteKey`/`noteValue`、`ActionType` 收窄
 - §6.4 GuardrailResult 改三态
 - §9 验收标准补 HITL/演示②行为改变/CI 三条
 - §10 风险表更新；§11.2/§11.5 三态化
-- §12 阶段一补 CI/WebUI/序列/MockLLM
+- §12 阶段一补 CI/序列/MockLLM
 
-**PLAN.md 修订（整体重写为要点式，13 task → 15 task）：**
+**PLAN.md 修订（整体重写为要点式，13 task → 14 task）：**
 - 所有 task 去除实现代码，保留失败测试 + 接口签名 + 约束
 - 每个 task 加状态块 + 两阶段评审 step
 - 任务 5 guardrail 改三态 + `approver` 注入点
 - 任务 8 主循环：三态分流 + 反馈改变动作 + HITL approver + config DRY
 - 任务 11 演示②重写为"失败→反馈→改走 done"，演示③改多轮反馈确定性
-- 新增任务 12（本地 WebUI）、任务 14（CI）
+- 新增任务 12（CI）
 
 ### 3.5 反思：writing-plans 技能表现
 

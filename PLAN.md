@@ -2,11 +2,11 @@
 
 > **对于 agent 执行者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 来逐 task 实现本计划。步骤使用复选框（`- [ ]`）语法追踪进度。
 
-**目标：** 构建 Coding Agent Harness 的 MVP：agent 主循环、3 个基础工具、三态分级治理护栏（含 HITL approver 注入点）、基础反馈注入（含"改变下一步动作"演示）、记忆系统、可观测性、凭据加密存储、CLI 入口、本地 WebUI 调试面板、GitHub Actions CI、Docker 分发。
+**目标：** 构建 Coding Agent Harness 的 MVP：agent 主循环、3 个基础工具、三态分级治理护栏（含 HITL approver 注入点）、基础反馈注入（含"改变下一步动作"演示）、记忆系统、可观测性、凭据加密存储、CLI 入口、GitHub Actions CI、Docker 分发。
 
 **架构：** 模块化 harness，中央 while 循环。每个组件（LLM、工具、护栏、记忆、追踪器）是独立模块，实现定义的接口。Harness 启动时装配并在循环中运行。护栏返回三态处置（allow / deny / escalate），escalate 经 `approver` 注入点触发 HITL。
 
-**技术栈：** TypeScript 5.x, Node.js 20+, npm, commander, vitest, tsup, openai npm 包, Node.js crypto, express, dotenv, Open Design。
+**技术栈：** TypeScript 5.x, Node.js 20+, npm, commander, vitest, tsup, openai npm 包, Node.js crypto, dotenv。
 
 **代码粒度约定（要点式）：**
 - 每个 task 给出**完整的失败测试代码**（含断言）+ **接口签名** + **关键约束/边界**。
@@ -35,7 +35,7 @@
 ```
 coding-agent-harness/
 ├── src/
-│   ├── index.ts              # CLI entry (commander): run / config / web
+│   ├── index.ts              # CLI entry (commander): run / config
 │   ├── harness.ts            # Agent 主循环
 │   ├── config.ts             # Config 装配（复用 guardrail 默认模式表）
 │   ├── types.ts              # 共享类型定义
@@ -52,9 +52,6 @@ coding-agent-harness/
 │   │   ├── read_file.ts      # ReadFileTool
 │   │   ├── write_file.ts     # WriteFileTool
 │   │   └── shell.ts          # ShellTool
-│   └── web/
-│       ├── server.ts         # Express 服务器
-│       └── public/           # Open Design 静态面板
 ├── tests/
 │   ├── types.test.ts
 │   ├── llm.test.ts
@@ -64,7 +61,7 @@ coding-agent-harness/
 │   ├── tracer.test.ts
 │   ├── harness.test.ts
 │   ├── credentials.test.ts
-│   ├── web.test.ts
+│   ├── cli.test.ts
 │   └── mechanism-demo.test.ts
 ├── .github/workflows/ci.yml # GitHub Actions: unit-test + docker-build
 ├── package.json
@@ -97,7 +94,7 @@ coding-agent-harness/
 
 **关键约束：**
 - `package.json` 的 `type: "module"`；`bin` 指向 `dist/index.js`。
-- 依赖：`commander`、`openai`、`express`、`dotenv`；开发依赖：`typescript`、`tsup`、`vitest`、`@types/node`、`@types/express`。
+- 依赖：`commander`、`openai`、`dotenv`；开发依赖：`typescript`、`tsup`、`vitest`、`@types/node`。
 - 脚本：`build`=`tsup`、`test`=`vitest run`、`test:watch`=`vitest`、`start`=`node dist/index.js`。
 - `tsconfig`：`target` ES2022、`module` ESNext、`moduleResolution` bundler、`strict` true。
 - `vitest.config`：`globals` true、`environment` node、`include` `tests/**/*.test.ts`。
@@ -1040,13 +1037,12 @@ git commit -m "feat: 实现凭据加密存储（AES-256-GCM）
 
 **接口：**
 - 依赖： 全部模块
-- 产出： CLI 入口，含 `run` / `config` / `web` 三个命令
+- 产出： CLI 入口，含 `run` / `config` 两个命令
 
 **关键约束：**
 - 顶部 `import 'dotenv/config'`（从 `.env` 加载环境变量）。
 - `run <goal>`：装配 ToolRegistry（read/write/shell）、CredentialManager、FileMemory、Tracer；`--mock` 用 MockLLM，否则用 DeepSeekProvider。真实模式：未配置 key 且无 `DEEPSEEK_API_KEY` → 报错退出；key 取自 env 或 `creds.load(promptPassword())`。
 - `config`：`--status` 显示"已配置/未配置"不回显明文；`--clear` 清除；无选项→交互式隐藏输入 key + 主密码 + 确认。
-- `web`：启动任务 12 的 Express 服务器。
 - **主入口守卫**：`const isMain = process.argv[1]?.includes('index')`，仅 `isMain` 时 `program.parse(process.argv)`——防止 vitest import 时触发 CLI 解析。
 
 - [ ] **步骤 1：编写失败测试**
@@ -1082,15 +1078,15 @@ npm run build
 node dist/index.js --help
 ```
 
-预期： 测试 PASS；help 文本含 `run`、`config`、`web`。
+预期： 测试 PASS；help 文本含 `run`、`config`。
 
 - [ ] **步骤 5：两阶段评审 + 提交**
 
-spec 合规：dotenv 加载、隐藏输入、不回显、主入口守卫、web 命令接任务 12。代码质量：错误信息可读、无 process.exit 滥用。
+spec 合规：dotenv 加载、隐藏输入、不回显、主入口守卫。代码质量：错误信息可读、无 process.exit 滥用。
 
 ```bash
 git add src/index.ts tests/cli.test.ts
-git commit -m "feat: 实现 CLI entry（run/config/web + dotenv + 主入口守卫）
+git commit -m "feat: 实现 CLI entry（run/config + dotenv + 主入口守卫）
 
 由 subagent-X 完成。"
 ```
@@ -1214,125 +1210,19 @@ git commit -m "test: 机制演示（护栏三态 + 反馈改变动作 + 多轮�
 
 ---
 
-### Task 12：本地 WebUI 调试面板
 
-> 状态：✅ 完成 ｜ 实现: 7977779 (+fix 7ae3bbc) ｜ merge: b66dbc6（PR #10）｜ 分支: task/12
-
-**前置依赖：** 任务 1、7
-
-**文件：**
-- 创建： `src/web/server.ts`、`src/web/public/index.html`（+ Open Design 样式）
-- 测试： `tests/web.test.ts`
-
-**接口：**
-- 依赖： `HarnessConfig.tracesDir`、`Tracer` 产出的 trace JSON
-- 产出： `function startWebServer(tracesDir: string, port?: number): Promise<{ url: string; close(): Promise<void> }>`；`index.ts` 的 `web` 命令调用它
-
-**关键约束：**
-- Express 服务器：`GET /` 返回 Open Design 面板 HTML；`GET /api/traces` 返回 `{ sessions: TraceEntry[][] }`（读 `tracesDir` 下所有 `trace-*.json`）。
-- 无 trace 文件时 `/api/traces` 返回 `{ sessions: [] }`（空状态）。
-- 默认端口 3000，可被 `port` 参数覆盖；`startWebServer` 返回 `close()` 以便测试关闭。
-- 面板展示：会话列表 → 决策轨迹（step、action、result、feedback）。使用 Open Design 设计系统。
-- 不依赖真实 LLM/网络（仅读本地 JSON）。
-
-- [ ] **步骤 1：编写失败测试**
-
-创建 `tests/web.test.ts`：
-
-```typescript
-import { describe, it, expect, afterEach } from 'vitest'
-import { startWebServer } from '../src/web/server'
-import { Tracer } from '../src/tracer'
-import * as fs from 'fs'
-import * as path from 'path'
-import * as os from 'os'
-
-const D = path.join(os.tmpdir(), 'agent-harness-web-test-' + Date.now())
-
-describe('WebUI server', () => {
-  let stop: () => Promise<void>
-
-  afterEach(async () => {
-    if (stop) await stop()
-    try { fs.rmSync(D, { recursive: true, force: true }) } catch {}
-  })
-
-  it('serves panel at /', async () => {
-    fs.mkdirSync(D, { recursive: true })
-    const srv = await startWebServer(D, 3456)
-    stop = srv.close
-    const res = await fetch('http://localhost:3456/')
-    expect(res.status).toBe(200)
-    const html = await res.text()
-    expect(html).toContain('Agent') // 面板标题等
-  })
-
-  it('returns empty sessions when no traces', async () => {
-    fs.mkdirSync(D, { recursive: true })
-    const srv = await startWebServer(D, 3457)
-    stop = srv.close
-    const res = await fetch('http://localhost:3457/api/traces')
-    const json = await res.json()
-    expect(json.sessions).toEqual([])
-  })
-
-  it('returns sessions from trace files', async () => {
-    fs.mkdirSync(D, { recursive: true })
-    const tr = new Tracer(D)
-    tr.record(1, { type: 'done', answer: 'hi' }, 'hi')
-    await tr.flush()
-    const srv = await startWebServer(D, 3458)
-    stop = srv.close
-    const json = await (await fetch('http://localhost:3458/api/traces')).json()
-    expect(json.sessions.length).toBe(1)
-    expect(json.sessions[0][0].step).toBe(1)
-  })
-})
-```
-
-- [ ] **步骤 2：运行测试确认失败**
-
-```bash
-npm test -- tests/web.test.ts
-```
-
-预期： FAIL — `src/web/server.ts` 不存在。
-
-- [ ] **步骤 3：实现 `src/web/server.ts` + `public/index.html`**（subagent 自主编写，Open Design 面板）
-
-- [ ] **步骤 4：运行测试确认通过**
-
-```bash
-npm test -- tests/web.test.ts
-```
-
-预期： PASS。
-
-- [ ] **步骤 5：两阶段评审 + 提交**
-
-spec 合规：读 traces、空状态、端口可覆盖、返回 close()、Open Design。代码质量：无投机路由、错误处理最小。
-
-```bash
-git add src/web/ tests/web.test.ts
-git commit -m "feat: 实现本地 WebUI 调试面板（Express + Open Design 读 traces）
-
-由 subagent-X 完成。"
-```
-
----
-
-### Task 13：Dockerfile
+### Task 12：Dockerfile
 
 > 状态：✅ 完成 ｜ 实现: f591c58 (+fix 1db3ac2) ｜ merge: 21dfc5c（PR #11）｜ 分支: task/13
 
-**前置依赖：** 任务 1–12
+**前置依赖：** 任务 1–11
 
 **文件：**
 - 创建： `Dockerfile`
 
 **关键约束：**
 - 多阶段构建：builder 阶段 `npm ci` + `npm run build`；运行阶段拷 `dist` + `package.json`，`npm ci --production`。
-- 基础镜像 `node:20-alpine`；`EXPOSE 3000`；`ENTRYPOINT ["node","dist/index.js"]`。
+- 基础镜像 `node:20-alpine`；`ENTRYPOINT ["node","dist/index.js"]`。
 
 - [ ] **步骤 1：编写 `Dockerfile`**（按约束，多阶段）
 
@@ -1346,7 +1236,7 @@ docker build -t coding-agent-harness .
 
 - [ ] **步骤 3：两阶段评审 + 提交**
 
-spec 合规：多阶段、alpine、EXPOSE 3000、ENTRYPOINT 正确。代码质量：层缓存合理（先拷 package.json）。
+spec 合规：多阶段、alpine、ENTRYPOINT 正确。代码质量：层缓存合理（先拷 package.json）。
 
 ```bash
 git add Dockerfile
@@ -1357,11 +1247,11 @@ git commit -m "chore: 添加多阶段 Dockerfile
 
 ---
 
-### Task 14：GitHub Actions CI
+### Task 13：GitHub Actions CI
 
 > 状态：✅ 完成 ｜ 实现: 7b4173e (+fix f1b3ecf) ｜ merge: 09bea69（PR #12）｜ 分支: task/14
 
-**前置依赖：** 任务 1–13
+**前置依赖：** 任务 1–12
 
 **文件：**
 - 创建： `.github/workflows/ci.yml`
@@ -1391,11 +1281,11 @@ git commit -m "chore: 添加 GitHub Actions CI（unit-test + docker-build）
 
 ---
 
-### Task 15：AGENT_LOG.md 初始化
+### Task 14：AGENT_LOG.md 初始化
 
 > 状态：✅ 完成 ｜ 实现: d5b07b9 ｜ merge: 0dfd1ac（PR #13）｜ 分支: task/15
 
-**前置依赖：** 任务 1–14
+**前置依赖：** 任务 1–13
 
 **文件：**
 - 创建： `AGENT_LOG.md`
@@ -1421,13 +1311,12 @@ git commit -m "docs: 初始化 AGENT_LOG.md
 
 ## 全部完成后：验证
 
-所有 15 个 task 完成后，运行以下验证：
+所有 14 个 task 完成后，运行以下验证：
 
 - [ ] 全量测试：`npm test` — all green
 - [ ] 机制演示：`npm test -- tests/mechanism-demo.test.ts` — ①②③ 全过
 - [ ] 构建：`npm run build` — `dist/` 生成
-- [ ] CLI：`node dist/index.js --help` — 含 run/config/web
-- [ ] WebUI：`node dist/index.js web` → 浏览器访问 `localhost:3000` 展示 trace
+- [ ] CLI：`node dist/index.js --help` — 含 run/config
 - [ ] Docker：`docker build -t coding-agent-harness .` — 构建成功
 - [ ] CI：push 后 GitHub Actions `unit-test` + `docker-build` 均 pass
 

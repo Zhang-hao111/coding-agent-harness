@@ -37,7 +37,7 @@ LLM 本身只具备"思考"能力——给定上下文，它决定下一步做�
 | US-3 | 安全护栏 | 作为开发者，我希望 agent 在尝试执行危险命令（如 `rm -rf /`）时被自动拦截，这样我的系统就不会被意外破坏。 |
 | US-4 | 自我修正 | 作为开发者，我希望 agent 在写出有错误的代码后能自动运行检查并自我修正，这样我就不需要手动指出每处错误。 |
 | US-5 | 跨会话记忆 | 作为开发者，我希望 agent 能记住我项目的约定和历史决策，这样每次启动新会话时不需要重复说明。 |
-| US-6 | 可观测性 | 作为开发者，我可以通过 WebUI 查看 agent 的每一步决策和工具调用，这样我就能理解它为什么做出了某个操作。 |
+| US-6 | 可观测性 | 作为开发者，我可以通过 trace 文件查看 agent 的每一步决策和工具调用，这样我就能理解它为什么做出了某个操作。 |
 | US-7 | 凭据管理 | 作为开发者，我可以通过安全的方式配置 API Key，这样我的凭据就不会泄露到代码或日志中。 |
 
 ---
@@ -110,22 +110,9 @@ LLM 本身只具备"思考"能力——给定上下文，它决定下一步做�
 | 输入 | 每轮的 step 编号、action、工具结果 |
 | 行为 | 每一步记录决策 + 动作 + 结果，会话末落盘 |
 | 存储位置 | `~/.agent-harness/traces/` |
-| 输出 | 完整的 trace 记录，可被 WebUI 读取 |
+| 输出 | 完整的 trace 记录，落盘为 `trace-<ts>.json` |
 
-### 3.7 WebUI 调试面板
-
-| 项目 | 内容 |
-|------|------|
-| 触发 | `agent-harness web` 启动本地服务器 |
-| 功能 | 展示会话列表、决策轨迹、工具调用记录、反馈回灌过程 |
-| 数据来源 | 读取 `~/.agent-harness/traces/` 下的 trace JSON 文件 |
-| 设计系统 | Open Design |
-| 端口 | 默认 3000 |
-| 边界 | 无 trace 数据时展示空状态 |
-
-> 本地 WebUI（`localhost:3000`）在 MVP 阶段实现，满足"可访问的 WebUI 接口"交付。公网部署 URL 列为 §10 未决问题，留待阶段三单开。
-
-### 3.8 凭据管理
+### 3.7 凭据管理
 
 | 项目 | 内容 |
 |------|------|
@@ -165,8 +152,7 @@ LLM 本身只具备"思考"能力——给定上下文，它决定下一步做�
 ### 4.4 可观测性
 
 - 每轮循环记录决策、动作、结果
-- 支持通过 WebUI 实时查看 agent 执行过程
-- Trace 数据可导出为 JSON
+- Trace 数据落盘为 JSON，便于复盘与导出
 
 ---
 
@@ -194,11 +180,6 @@ LLM 本身只具备"思考"能力——给定上下文，它决定下一步做�
 │                   LLM Layer                          │
 │  ┌──────────────────────────────────────────────┐   │
 │  │  LLMProvider Interface ← MockLLM / DeepSeek  │   │
-│  └──────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────┤
-│                   WebUI Layer                        │
-│  ┌──────────────────────────────────────────────┐   │
-│  │  Express Server + Open Design 调试面板        │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -232,8 +213,6 @@ Agent Loop 启动
 | 依赖 | 用途 | 类型 |
 |------|------|------|
 | DeepSeek API | LLM 调用 | 运行时（通过 `openai` npm 包） |
-| Open Design | WebUI 设计系统 | 构建时（CSS/组件） |
-| Express | WebUI 服务器 | 运行时 |
 | commander | CLI 参数解析 | 运行时 |
 | vitest | 测试框架 | 开发时 |
 | dotenv | `.env` 加载环境变量（凭据备选来源） | 运行时 |
@@ -366,7 +345,6 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
-EXPOSE 3000
 ENTRYPOINT ["node", "dist/index.js"]
 ```
 
@@ -392,15 +370,13 @@ npx coding-agent-harness
 
 | 选型 | 选择 | 理由 |
 |------|------|------|
-| 语言 | TypeScript 5.x | 类型安全，与 CLI/WebUI 生态一致，npm 分发方便 |
+| 语言 | TypeScript 5.x | 类型安全，与 CLI 生态一致，npm 分发方便 |
 | 运行时 | Node.js 20+ | LTS，原生 fetch，生态成熟 |
 | 包管理 | npm | 标准 |
 | 构建 | tsup | 零配置 TypeScript 打包 |
 | 测试 | vitest | 快速，兼容 jest API |
 | LLM 调用 | openai npm 包 | DeepSeek 兼容 OpenAI 协议，直接复用 |
 | CLI | commander | 最成熟的 Node.js CLI 框架 |
-| WebUI 服务器 | Express | 极简，单页服务 |
-| WebUI 设计系统 | Open Design | 项目要求，一致的 UI 体系 |
 | 加密 | Node.js crypto | 内置，无需额外依赖 |
 | 环境变量加载 | dotenv | 从 `.env` 加载凭据备选来源，避免进入 shell history |
 
@@ -416,7 +392,6 @@ npx coding-agent-harness
 | 反馈闭环 | 工具执行失败 → 错误信息回灌；演示②验证 agent 收到反馈后**改变下一步动作**（第一步失败 → 第二步改走 done，不再重试同一失败动作） |
 | 记忆系统 | 写入 key-value → 重新读取 → 返回正确的 value |
 | 可观测性 | 每轮 trace 记录 action、result、timestamp |
-| WebUI | `agent-harness web` 启动后浏览器可访问 `localhost:3000`，展示 trace 数据 |
 | 凭据管理 | 加密存储、不回显明文、支持更新和清除；环境变量经 `.env` 加载 |
 | Docker | 容器构建成功，运行后能执行 agent 循环 |
 | CI | GitHub Actions 含 `unit-test`（每次 push 跑测试）与 `docker-build`（构建镜像）两个 job，最后一次执行 pass |
@@ -431,7 +406,6 @@ npx coding-agent-harness
 | DeepSeekProvider 文本解析过弱 | 真实运行可能空转到 MAX_STEPS | v2.0 已切换至 function calling（见 SPEC-2.md） |
 | 危险命令模式匹配不足 | 漏拦危险操作 | MVP 覆盖最常见模式并分级 |
 | 加密文件被暴力破解 | 凭据泄露 | 使用 AES-256-GCM + 建议强密码 |
-| WebUI 仅本地、无公网 URL | 不满足通用要求 §五"线上部署 URL"硬交付 | MVP 交付本地 `localhost:3000` |
 | CI 选用 GitHub Actions 而非通用要求示例的 `.gitlab-ci.yml` | 助教按字面核对 | SPEC/README 注明等价实现，job 名含 `unit-test` |
 
 ---
@@ -521,7 +495,6 @@ MVP 阶段: 一行 try/catch 实现
 - 文件记忆系统
 - Tracer 基本记录
 - 凭据加密存储 + `.env` 加载
-- 本地 WebUI 调试面板（Express + Open Design，读 traces）
 - GitHub Actions CI（unit-test + docker-build）
 - 全部 mock-LLM 单元测试 + 机制演示
 - Docker 构建
@@ -533,8 +506,7 @@ MVP 阶段: 一行 try/catch 实现
 - 多轮修正循环 + 重复失败检测 + escalate_to_human
 - 深度单元测试覆盖
 
-### 阶段三：WebUI 与分发
+### 阶段三：分发与部署
 
-- Open Design 调试面板
-- Express 服务器
+- 镜像优化与多平台构建
 - 线上部署

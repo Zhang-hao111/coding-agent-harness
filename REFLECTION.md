@@ -14,7 +14,7 @@
 
 ## 四、困难与解决
 
-一是 classifier 间歇不可用：Task 9 起安全分类下线，push 被拦，应对是"等用户手动 merge"。二是 Open Design 术语含糊：查证后确认其形态是 `DESIGN.md` 契约，最终内联 CSS 不引 CDN。**spec 术语含糊必须澄清而非臆测**。
+一是 classifier 间歇不可用：Task 9 起安全分类下线，push 被拦，应对是"等用户手动 merge"。**spec 术语含糊必须澄清而非臆测**。
 
 ## 五、不足
 

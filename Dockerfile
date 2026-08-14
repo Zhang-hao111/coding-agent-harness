@@ -22,9 +22,7 @@ WORKDIR /app
 # 只装生产依赖（dependencies，不含 devDeps）
 COPY package.json package-lock.json ./
 RUN npm ci --production
-# 拷构建产物（自包含：内联 HTML，无需额外静态资源）
+# 拷构建产物（自包含）
 COPY --from=builder /app/dist ./dist
-# WebUI 调试面板端口（Task 12）
-EXPOSE 3000
-# 默认入口：agent-harness <command>，如 docker run <img> web
+# 默认入口：agent-harness <command>，如 docker run <img> run "你的任务"
 ENTRYPOINT ["node", "dist/index.js"]

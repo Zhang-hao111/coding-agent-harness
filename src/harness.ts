@@ -55,9 +55,9 @@ export async function runAgent(
 ): Promise<string> {
   const { maxSteps, dangerousPatterns, memory, tracer, approver } = options
 
-  // ---- 1. 初始 context = system prompt + goal；注入 project_context ----
+  // ---- 1. 初始 context = goal；注入 project_context ----
+  // system prompt 由 DeepSeekProvider.chat() 内部动态构建（见 src/llm/deepseek.ts）
   const context: Message[] = [
-    { role: 'system', content: '你是 Coding Agent Harness 中的决策 LLM。每步返回一个 action。' },
     { role: 'user', content: goal },
   ]
   const projectContext = await memory.read('project_context')
@@ -80,9 +80,9 @@ export async function runAgent(
       context.push(response.message)
     }
 
-    // ---- 3. action 为 null → continue ----
+    // ---- 3. action 为 null → 追加 hint 提示 LLM 必须调用工具或返回 done ----
     if (action === undefined || action === null) {
-      // 已 push assistant message，直接进入下一轮
+      context.push({ role: 'user', content: '请调用一个可用工具来完成任务，或调用 done 来结束任务。' })
       continue
     }
 
@@ -130,7 +130,11 @@ export async function runAgent(
         const result = await tools.execute(toolName, args)
         if (result.success) {
           resultText = result.data ?? ''
-          context.push({ role: 'user', content: resultText })
+          if (action.tool_call_id) {
+            context.push({ role: 'tool', content: resultText, tool_call_id: action.tool_call_id } as Message)
+          } else {
+            context.push({ role: 'user', content: resultText })
+          }
           tracer.record(steps, action, resultText)
         } else {
           // 失败：push 结果文本 + push 反馈（重点维度反馈闭环核心）

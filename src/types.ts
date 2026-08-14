@@ -1,6 +1,17 @@
 // ============================================================
-// 核心类型定义 — Coding Agent Harness MVP
+// 核心类型定义 — Coding Agent Harness v2.0
 // ============================================================
+
+// ---- ToolCall（function calling 协议） ----
+
+export interface ToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string   // JSON string
+  }
+}
 
 // ---- Action ----
 
@@ -13,14 +24,25 @@ export interface Action {
   answer?: string               // done 时
   noteKey?: string              // take_note 时：记忆键
   noteValue?: string            // take_note 时：记忆值
+  tool_call_id?: string         // 新增：用于 ToolMessage 回灌
 }
 
-// ---- Message ----
+// ---- Message（拓宽联合类型） ----
 
-export interface Message {
-  role: 'system' | 'user' | 'assistant'   // 窄联合，直接兼容 openai SDK
+export interface SystemMessage    { role: 'system';    content: string }
+export interface UserMessage      { role: 'user';      content: string }
+export interface AssistantMessage {
+  role: 'assistant'
+  content: string | null
+  tool_calls?: ToolCall[]
+}
+export interface ToolMessage {
+  role: 'tool'
   content: string
+  tool_call_id: string
 }
+
+export type Message = SystemMessage | UserMessage | AssistantMessage | ToolMessage
 
 // ---- ToolChoice ----
 

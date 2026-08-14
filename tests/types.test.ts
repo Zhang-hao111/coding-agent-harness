@@ -26,3 +26,53 @@ describe('Type definitions', () => {
     expect(t).not.toBe('spawn_subagent')
   })
 })
+
+// ============================================================
+// Task 1: ToolCall + Message 拓宽联合类型 + Action.tool_call_id
+// ============================================================
+
+describe('ToolCall type', () => {
+  it('can be constructed with required fields', () => {
+    const tc: Types.ToolCall = {
+      id: 'call_123',
+      type: 'function',
+      function: { name: 'read_file', arguments: '{"path":"test.txt"}' },
+    }
+    expect(tc.id).toBe('call_123')
+    expect(tc.function.name).toBe('read_file')
+  })
+})
+
+describe('Message union type', () => {
+  it('system message has role system', () => {
+    const m: Types.Message = { role: 'system', content: 'test' }
+    expect(m.role).toBe('system')
+  })
+
+  it('user message has role user', () => {
+    const m: Types.Message = { role: 'user', content: 'hi' }
+    expect(m.role).toBe('user')
+  })
+
+  it('assistant message can have tool_calls', () => {
+    const m: Types.Message = {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{ id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } }],
+    }
+    expect(m.role).toBe('assistant')
+    expect(m.tool_calls).toHaveLength(1)
+  })
+
+  it('tool message has tool_call_id', () => {
+    const m: Types.Message = { role: 'tool', content: 'result', tool_call_id: 'call_123' }
+    expect(m.tool_call_id).toBe('call_123')
+  })
+})
+
+describe('Action.tool_call_id', () => {
+  it('tool_call_id is optional', () => {
+    const a: Types.Action = { type: 'done', answer: 'ok' }
+    expect(a.tool_call_id).toBeUndefined()
+  })
+})
